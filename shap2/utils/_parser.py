@@ -63,6 +63,13 @@ def arg_parse():
     )
 
     parser.add_argument(
+        "--model",
+        help="The type of shapley value algorithm",
+        type=str,
+        default="gpt2", # ["mistralai/Mistral-7B-v0.1"]
+    )
+
+    parser.add_argument(
         "--algorithm",
         help="The type of shapley value algorithm",
         type=str,

@@ -27,10 +27,10 @@ def main(args):
 
 
     #### Define the LM model ####
-    model = AutoModelForCausalLM.from_pretrained(args.model) # AutoModelForCausalLM.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(args.model)
     tokenizer = AutoTokenizer.from_pretrained(args.model)
     tokenizer.pad_token = tokenizer.eos_token
-    if args.model_name == "gpt2":
+    if args.model == "gpt2":
         # set model decoder to true
         model.config.is_decoder = True
         # set text-generation params under task_specific_params
@@ -41,40 +41,23 @@ def main(args):
             "top_k": 50,
             "no_repeat_ngram_size": 2,
         }
+
+    prompt = "My favourite condiment is"
+    print(f"Prompt: {prompt}")
+
+    model_inputs = tokenizer([prompt], return_tensors="pt").to(device)
+    model.to(device)
+    generated_ids = model.generate(**model_inputs, max_new_tokens=100, do_sample=True)
+    print("generated_ids", generated_ids)
+    decoded_str = tokenizer.batch_decode(generated_ids)[0]
+    print(f"Generated text: {decoded_str}")
+
     lmmodel = models.TextGeneration(model, tokenizer, device=device)
+    print("lmmodel.inner_model", lmmodel.inner_model)
+    input = (np.array(["Peter is a father with a"], dtype="<U21"),)
+    print('input', input)
+    print("lmmodel(*input)", lmmodel(*input))
 
-    #### Prepare the data ####
-    tsv_file = open("./data/Inconsistent-Dataset-Negation.tsv")
-    read_tsv = list(csv.reader(tsv_file, delimiter="\t"))
-    data = []
-    for row in read_tsv:
-        data.append(row[1][:-8])
-    data = np.array(data)
-    print(f"Inconsistent-Dataset-Negation.tsv: {len(data)}")
-
-    # build the right subclass
-    if args.algorithm == "partition_init":
-        explainer = shap.explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
-    elif args.algorithm == "partition":
-        explainer = explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
-    elif args.algorithm == "exact":
-        explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="exact", weighted=eval(args.weighted))
-    elif args.algorithm == "dtree":
-        explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="dtree", weighted=eval(args.weighted))
-    elif args.algorithm == "r-dtree":
-        explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="r-dtree", weighted=eval(args.weighted))
-    else:
-        raise InvalidAlgorithmError("Unknown dependency tree algorithm type passed: %s!" % args.algorithm)
-
-    shap_values = explainer(data)
-    filename = f"loss_dist/shap_values_{args.algorithm}"
-    if eval(args.weighted):
-        filename += "_weighted"
-    filename += ".pkl"
-    shap_values._save(os.path.join(args.result_save_dir, filename))
-    print("Done!")
-
-    #### Save the shap values ####
 
 
 if __name__ == "__main__":
