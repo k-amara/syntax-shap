@@ -19,14 +19,14 @@ __pycache__
 **/.coverage*
 /build
 /data/*
+/results/*
+/figures/*
 /dist
 /docs/_build
 /docs/artwork/local
 /docs/generated/
 /docs/local
 /javascript/build/*
-/notebooks/deep_explainer/mnist_data
-/notebooks/local_scratch
 /shap2.egg-info
 /shap2/_cext*
 /shap2/_version.py
@@ -35,6 +35,3 @@ __pycache__
 /tests/mnist_data
 catboost_info
 node_modules
-.DS_Store
-gfn_explainer 2/ckpts/ba2/.DS_Store
-gfn_explainer 2/ckpts/.DS_Store
