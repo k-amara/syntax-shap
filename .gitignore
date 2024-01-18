@@ -1,0 +1,40 @@
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# shap/shap
+__pycache__
+.DS_Store
+.eggs
+.idea
+.ipynb_checkpoints
+.ruff_cache
+.vscode
+*.pyc
+**/.coverage*
+/build
+/data/*
+/dist
+/docs/_build
+/docs/artwork/local
+/docs/generated/
+/docs/local
+/javascript/build/*
+/notebooks/deep_explainer/mnist_data
+/notebooks/local_scratch
+/shap2.egg-info
+/shap2/_cext*
+/shap2/_version.py
+/shap2/cached_data
+/tests/local_scratch.py
+/tests/mnist_data
+catboost_info
+node_modules
+.DS_Store
+gfn_explainer 2/ckpts/ba2/.DS_Store
+gfn_explainer 2/ckpts/.DS_Store
