@@ -25,10 +25,20 @@ def main(args):
     fix_random_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    print("args", args)
 
     #### Define the LM model ####
-    model = AutoModelForCausalLM.from_pretrained(args.model) # AutoModelForCausalLM.from_pretrained(model_name)
-    tokenizer = AutoTokenizer.from_pretrained(args.model)
+
+    if args.model_name == "gpt2":
+        model_load = args.model_name
+        tokenizer_load = args.model_name
+    elif args.model_name == "mistral":
+        model_load = "mistralai/Mistral-7B-v0.1"
+        tokenizer_load = os.path.join(args.model_save_dir, args.model_name)
+
+    model = AutoModelForCausalLM.from_pretrained(model_load)
+    model.save_pretrained(f'/cluster/work/zhang/kamara/syntax-shap/models/{args.model_name}')
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_load)
     tokenizer.pad_token = tokenizer.eos_token
     if args.model_name == "gpt2":
         # set model decoder to true
@@ -41,6 +51,7 @@ def main(args):
             "top_k": 50,
             "no_repeat_ngram_size": 2,
         }
+    model.to(device)
     lmmodel = models.TextGeneration(model, tokenizer, device=device)
 
     #### Prepare the data ####
@@ -67,11 +78,12 @@ def main(args):
         raise InvalidAlgorithmError("Unknown dependency tree algorithm type passed: %s!" % args.algorithm)
 
     shap_values = explainer(data)
-    filename = f"loss_dist/shap_values_{args.algorithm}"
+    save_dir = os.path.join(args.result_save_dir, 'shap_values')
+    filename = f"shap_values_{args.data}_{args.model_name}_{args.algorithm}"
     if eval(args.weighted):
         filename += "_weighted"
     filename += ".pkl"
-    shap_values._save(os.path.join(args.result_save_dir, filename))
+    shap_values._save(os.path.join(save_dir, filename))
     print("Done!")
 
     #### Save the shap values ####

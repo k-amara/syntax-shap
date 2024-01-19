@@ -7,30 +7,30 @@ import numpy as np
 import shap
 import torch
 import transformers
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModel, MistralForCausalLM
 from utils import arg_parse, fix_random_seed
-from utils._exceptions import InvalidAlgorithmError
-
-#import shap
-
-MIN_TRANSFORMERS_VERSION = "4.25.1"
-
-# check transformers version
-assert (
-    transformers.__version__ >= MIN_TRANSFORMERS_VERSION
-), f"Please upgrade transformers to version {MIN_TRANSFORMERS_VERSION} or higher."
 
 
 def main(args):
     fix_random_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    print("args", args)
 
     #### Define the LM model ####
-    model = AutoModelForCausalLM.from_pretrained(args.model)
-    tokenizer = AutoTokenizer.from_pretrained(args.model)
+
+    if args.model_name == "gpt2":
+        model_load = args.model_name
+        tokenizer_load = args.model_name
+    elif args.model_name == "mistral":
+        model_load = f'/cluster/work/zhang/kamara/syntax-shap/models/{args.model_name}'#"mistralai/Mistral-7B-v0.1"
+        tokenizer_load = os.path.join(args.model_save_dir, args.model_name)
+
+    model = AutoModelForCausalLM.from_pretrained(model_load)
+    print('model', model)
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_load)
     tokenizer.pad_token = tokenizer.eos_token
-    if args.model == "gpt2":
+    if args.model_name == "gpt2":
         # set model decoder to true
         model.config.is_decoder = True
         # set text-generation params under task_specific_params
@@ -45,8 +45,9 @@ def main(args):
     prompt = "My favourite condiment is"
     print(f"Prompt: {prompt}")
 
-    model_inputs = tokenizer([prompt], return_tensors="pt").to(device)
-    model.to(device)
+    model_inputs = tokenizer([prompt], return_tensors="pt")#.to(device)
+    # model.to(device)
+    print("model starts generating...")
     generated_ids = model.generate(**model_inputs, max_new_tokens=100, do_sample=True)
     print("generated_ids", generated_ids)
     decoded_str = tokenizer.batch_decode(generated_ids)[0]

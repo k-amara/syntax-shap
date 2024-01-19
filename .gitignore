@@ -35,3 +35,7 @@ __pycache__
 /tests/mnist_data
 catboost_info
 node_modules
+/tests/*
+/clutils/*
+/models/*
+/config/*

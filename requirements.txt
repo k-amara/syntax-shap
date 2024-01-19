@@ -15,3 +15,5 @@
 # xgboost
 # catboost
 # lightgbm
+# transformers 4.38.0.dev0
+# torch 2.1.0
