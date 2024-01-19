@@ -1,5 +1,6 @@
 import csv
 import os
+from evaluate import get_scores, save_scores
 
 import explainers
 import models
@@ -7,7 +8,7 @@ import numpy as np
 import shap
 import torch
 import transformers
-from transformers import AutoTokenizer, AutoModelForCausalLM, GPT2LMHeadModel
+from transformers import AutoTokenizer, AutoModelForCausalLM
 from utils import arg_parse, fix_random_seed
 from utils._exceptions import InvalidAlgorithmError
 
@@ -24,19 +25,18 @@ assert (
 def main(args):
     fix_random_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("args", args)
 
-    #### Define the LM model ####
-
+    #### Load the model ####
     if args.model_name == "gpt2":
         model_load = args.model_name
         tokenizer_load = args.model_name
     elif args.model_name == "mistral":
         model_load = "mistralai/Mistral-7B-v0.1"
         tokenizer_load = os.path.join(args.model_save_dir, args.model_name)
-    else: 
-        raise Exception("Unknown model name")
 
     model = AutoModelForCausalLM.from_pretrained(model_load)
+    model.save_pretrained(f'/cluster/work/zhang/kamara/syntax-shap/models/{args.model_name}')
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_load)
     tokenizer.pad_token = tokenizer.eos_token
     if args.model_name == "gpt2":
@@ -61,7 +61,7 @@ def main(args):
     data = np.array(data)
     print(f"Inconsistent-Dataset-Negation.tsv: {len(data)}")
 
-    # build the right subclass
+    #### Explain the model ####
     if args.algorithm == "partition_init":
         explainer = shap.explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
     elif args.algorithm == "partition":
@@ -74,8 +74,9 @@ def main(args):
         explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="r-dtree", weighted=eval(args.weighted))
     else:
         raise InvalidAlgorithmError("Unknown dependency tree algorithm type passed: %s!" % args.algorithm)
-
     shap_values = explainer(data)
+
+    #### Save the shap values ####
     save_dir = os.path.join(args.result_save_dir, 'shap_values')
     filename = f"shap_values_{args.data}_{args.model_name}_{args.algorithm}"
     if eval(args.weighted):
@@ -83,8 +84,11 @@ def main(args):
     filename += ".pkl"
     shap_values._save(os.path.join(save_dir, filename))
     print("Done!")
-
-    #### Save the shap values ####
+    
+    #### Evaluate the fidelity ####
+    explanations = shap_values.values
+    scores = get_scores(args, data, explanations, lmmodel)
+    save_scores(args, scores)
 
 
 if __name__ == "__main__":
