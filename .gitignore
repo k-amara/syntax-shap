@@ -38,4 +38,7 @@ node_modules
 /tests/*
 /clutils/*
 /models/*
+<<<<<<< HEAD
 /config/*
+=======
+>>>>>>> 4bf2fb482258c4d7f043828d63793a7da3f284ca

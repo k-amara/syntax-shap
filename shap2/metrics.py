@@ -80,8 +80,8 @@ def padleft_mask(masks, max_length):
 
 # Tokenization does not necessarily match the word split
 # max_length(tokenizer) >= n_words
-
-def aopc_fidelity(str_inputs, shapley_scores, pipeline, k=0.2, token_id=0):
+# aopc corresponds to fidelity+ --> 1 - we remove the explanation
+def fidelity_rmv(str_inputs, shapley_scores, pipeline, k=0.2, token_id=0):
     pipeline.tokenizer.padding_side = 'left'
     input_ids = [pipeline.tokenizer.encode(x) for x in str_inputs]
     max_length = max([len(line) for line in input_ids])
@@ -105,9 +105,34 @@ def aopc_fidelity(str_inputs, shapley_scores, pipeline, k=0.2, token_id=0):
     fid_scores = probs_orig - probs
     return fid_scores
 
+# fidelity_keep corresponds to fidelity- --> 0 - we keep the explanation
+def fidelity_keep(str_inputs, shapley_scores, pipeline, k=0.2, token_id=0):
+    pipeline.tokenizer.padding_side = 'left'
+    input_ids = [pipeline.tokenizer.encode(x) for x in str_inputs]
+    max_length = max([len(line) for line in input_ids])
+
+    inputs = pipeline.get_inputs(str_inputs, padding_side='left')
+
+    outputs_orig = pipeline.get_outputs(str_inputs)
+    old_predictions = outputs_orig.sequences[:,-1]
+    probabilities_orig = torch.nn.functional.softmax(outputs_orig.scores[0], dim=1)
+    probs_orig = torch.Tensor([probabilities_orig[enum, item] for enum, item in enumerate(old_predictions)])
+
+    masks = generate_explanatory_masks(str_inputs, shapley_scores, k, token_id)
+    new_attention_masks = 1-padleft_mask(masks, max_length = max_length)
+
+    new_inputs = {'input_ids': inputs['input_ids'], 'attention_mask':new_attention_masks}
+    outputs = pipeline.inner_model.generate(**new_inputs, max_new_tokens=1, return_dict_in_generate=True, output_scores=True)
+    new_predictions = outputs.sequences[:,-1]
+    probabilities = torch.nn.functional.softmax(outputs.scores[0], dim=1)
+    probs = torch.Tensor([probabilities[enum, item] for enum, item in enumerate(old_predictions)])
+
+    fid_scores = probs_orig - probs
+    return fid_scores
 
 
-def kl_divergence_fidelity(str_inputs, shapley_scores, pipeline, k=0.2, token_id=0):
+
+def kl_fidelity_keep(str_inputs, shapley_scores, pipeline, k=0.2, token_id=0):
     pipeline.tokenizer.padding_side = 'left'
     input_ids = [pipeline.tokenizer.encode(x) for x in str_inputs]
     max_length = max([len(line) for line in input_ids])
