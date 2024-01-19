@@ -53,7 +53,10 @@ def main(args):
     lmmodel = models.TextGeneration(model, tokenizer, device=device)
 
     #### Prepare the data ####
-    tsv_file = open("./data/Inconsistent-Dataset-Negation.tsv")
+    if args.dataset == "negation":
+        data_file = "Inconsistent-Dataset-Negation.tsv"
+    data_path = os.path.join(args.data_save_dir, data_file)
+    tsv_file = open(data_path)
     read_tsv = list(csv.reader(tsv_file, delimiter="\t"))
     data = []
     for row in read_tsv:
@@ -78,7 +81,7 @@ def main(args):
 
     #### Save the shap values ####
     save_dir = os.path.join(args.result_save_dir, 'shap_values')
-    filename = f"shap_values_{args.data}_{args.model_name}_{args.algorithm}"
+    filename = f"shap_values_{args.dataset}_{args.model_name}_{args.algorithm}"
     if eval(args.weighted):
         filename += "_weighted"
     filename += ".pkl"

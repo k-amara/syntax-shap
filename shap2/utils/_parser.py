@@ -9,8 +9,9 @@ from transformers import set_seed
 #
 
 CKPT_ROOT = "/cluster/home/kamara/syntax-shap/"
-DATA_DIR = CKPT_ROOT + "data/"
-MODEL_DIR = CKPT_ROOT + "models/"
+STORAGE = "/cluster/work/zhang/kamara/syntax-shap/"
+DATA_DIR = STORAGE + "data/"
+MODEL_DIR = STORAGE + "models/"
 FIG_DIR = CKPT_ROOT + "figures/"
 RESULT_DIR = CKPT_ROOT + "results/"
 
@@ -62,6 +63,12 @@ def arg_parse():
 
     parser.add_argument(
         "--seed", help="random seed", type=int, default=0
+    )
+
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="negation", # ["generics_kb_best_filtered"]
     )
 
     parser.add_argument(

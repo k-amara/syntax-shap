@@ -33,7 +33,7 @@ def get_scores(args, data, explanations, lmmodel):
 
 def save_scores(args, scores):
     save_dir = os.path.join(args.result_save_dir, 'scores')
-    filename = f"scores_{args.data}_{args.model_name}_{args.algorithm}"
+    filename = f"scores_{args.dataset}_{args.model_name}_{args.algorithm}"
     if eval(args.weighted):
         filename += "_weighted"
     filename += ".pkl"
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     w_str = "_weighted" if weighted else ""
     print("w_str", w_str)
     save_dir = os.path.join(args.result_save_dir, 'shap_values')
-    filename = f"shap_values_{args.data}_{args.model_name}_{args.algorithm}"
+    filename = f"shap_values_{args.dataset}_{args.model_name}_{args.algorithm}"
     if eval(args.weighted):
         filename += "_weighted"
     filename += ".pkl"
