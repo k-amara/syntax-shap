@@ -7,7 +7,7 @@ import numpy as np
 import shap
 import torch
 import transformers
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, GPT2LMHeadModel
 from utils import arg_parse, fix_random_seed
 from utils._exceptions import InvalidAlgorithmError
 
@@ -25,10 +25,19 @@ def main(args):
     fix_random_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
     #### Define the LM model ####
-    model = AutoModelForCausalLM.from_pretrained(args.model) # AutoModelForCausalLM.from_pretrained(model_name)
-    tokenizer = AutoTokenizer.from_pretrained(args.model)
+
+    if args.model_name == "gpt2":
+        model_load = args.model_name
+        tokenizer_load = args.model_name
+    elif args.model_name == "mistral":
+        model_load = "mistralai/Mistral-7B-v0.1"
+        tokenizer_load = os.path.join(args.model_save_dir, args.model_name)
+    else: 
+        raise Exception("Unknown model name")
+
+    model = AutoModelForCausalLM.from_pretrained(model_load)
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_load)
     tokenizer.pad_token = tokenizer.eos_token
     if args.model_name == "gpt2":
         # set model decoder to true
@@ -67,11 +76,12 @@ def main(args):
         raise InvalidAlgorithmError("Unknown dependency tree algorithm type passed: %s!" % args.algorithm)
 
     shap_values = explainer(data)
-    filename = f"loss_dist/shap_values_{args.algorithm}"
+    save_dir = os.path.join(args.result_save_dir, 'shap_values')
+    filename = f"shap_values_{args.data}_{args.model_name}_{args.algorithm}"
     if eval(args.weighted):
         filename += "_weighted"
     filename += ".pkl"
-    shap_values._save(os.path.join(args.result_save_dir, filename))
+    shap_values._save(os.path.join(save_dir, filename))
     print("Done!")
 
     #### Save the shap values ####
