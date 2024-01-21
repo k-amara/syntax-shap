@@ -1,10 +1,10 @@
 import numpy as np
 
-from shap2 import links
-from shap2.models import Model
-from shap2.utils import MaskedModel
+import links
+from models import Model
+from utils import MaskedModel
 
-from .._explainer import Explainer
+from explainers._explainer import Explainer
 
 
 class Random(Explainer):

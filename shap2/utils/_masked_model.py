@@ -23,7 +23,6 @@ class MaskedModel:
         self.link = link
         self.linearize_link = linearize_link
         self.args = args
-        print("model on device", model.device)
 
         # if the masker supports it, save what positions vary from the background
         if callable(getattr(self.masker, "invariants", None)):
