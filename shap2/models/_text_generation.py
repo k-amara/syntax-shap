@@ -2,7 +2,7 @@ import numpy as np
 from _serializable import Deserializer, Serializer
 from transformers import set_seed
 from utils import safe_isinstance
-
+import torch
 from ._model import Model
 
 
@@ -229,6 +229,8 @@ class TextGeneration(Model):
                     inputs = self.get_inputs(X, padding_side="left")
                 if self.device is not None:
                     inputs = inputs.to(self.device)
+                print("inputs on device", inputs['input_ids'].device)
+                print("inner model on device", self.inner_model.device)
                 outputs = self.inner_model.generate(**inputs, **text_generation_params).detach().cpu().numpy()
         elif self.model_type == "tf":
             if self.inner_model.config.is_encoder_decoder:
