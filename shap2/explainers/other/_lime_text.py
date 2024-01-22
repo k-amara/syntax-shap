@@ -67,7 +67,7 @@ class LimeTextGeneration(Explainer):
         linear_model = LogisticRegression(C = 0.5, solver = "sag")
         self.linear_model = linear_model.fit(data_vc, self.predictions)        
 
-    def attributions(self, X):
+    def __call__(self, X):
 
         c = make_pipeline(self.tfidf_vc, self.linear_model)
         explainer = LimeTextExplainer(class_names = self.vocab)
