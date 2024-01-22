@@ -25,7 +25,6 @@ assert (
 def main(args):
     fix_random_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("args", args)
 
     #### Load the model ####
     if args.model_name == "gpt2":
@@ -49,7 +48,7 @@ def main(args):
             "max_new_tokens": 1,
             "temperature": 0.7,
             "top_k": 50,
-            "no_repeat_ngram_size": 2,
+            #"no_repeat_ngram_size": 2,
         }
     lmmodel = models.TextGeneration(model, tokenizer, device=device)
 
@@ -65,6 +64,18 @@ def main(args):
     data = np.array(data)
     print(f"Inconsistent-Dataset-Negation.tsv: {len(data)}")
 
+    #### Filter invalid data ####
+    # Tokenization might split words into multiple tokens, which is not supported by the current implementation
+    filter_ids_path = os.path.join(args.result_save_dir, "invalid_data/invalid_ids.npy")
+    if os.path.exists(filter_ids_path):
+        invalid_ids = np.load(filter_ids_path, allow_pickle=True)
+    else:
+        invalid_ids = []
+    filtered_data = np.delete(data, invalid_ids, axis=0)
+    # filtered_explanations = np.delete(explanations, invalid_ids, axis=0)
+    # assert len(filtered_data) == len(filtered_explanations)
+    print(f"Filtered Inconsistent-Dataset-Negation.tsv: {len(filtered_data)}")
+
     #### Explain the model ####
     if args.algorithm == "partition_init":
         explainer = shap.explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
@@ -78,7 +89,7 @@ def main(args):
         explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="r-dtree", weighted=eval(args.weighted))
     else:
         raise InvalidAlgorithmError("Unknown dependency tree algorithm type passed: %s!" % args.algorithm)
-    shap_values = explainer(data)
+    shap_values = explainer(filtered_data)
 
     #### Save the shap values ####
     save_dir = os.path.join(args.result_save_dir, 'shap_values')
@@ -90,18 +101,7 @@ def main(args):
     print("Done!")
     
     #### Evaluate the explanations ####
-    explanations = shap_values.values
-    
-    #### Filter invalid data ####
-    # Tokenization might split words into multiple tokens, which is not supported by the current implementation
-    filter_ids_path = os.path.join(args.result_save_dir, "data/invalid_ids.npy")
-    if os.path.exists(filter_ids_path):
-        invalid_ids = np.load(filter_ids_path, allow_pickle=True)
-    else:
-        invalid_ids = []
-    filtered_data = np.delete(data, invalid_ids, axis=0)
-    filtered_explanations = np.delete(explanations, invalid_ids, axis=0)
-    assert len(filtered_data) == len(filtered_explanations)
+    filtered_explanations = shap_values.values
 
     scores = get_scores(args, filtered_data, filtered_explanations, lmmodel)
     print("scores", scores)

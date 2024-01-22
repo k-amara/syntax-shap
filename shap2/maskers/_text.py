@@ -108,6 +108,8 @@ class Text(Masker):
         self.immutable_outputs = True
 
     def __call__(self, mask, s):
+        print('s', s)
+        print('mask', mask)
         mask = self._standardize_mask(mask, s)
         self._update_s_cache(s)
 
@@ -161,6 +163,7 @@ class Text(Masker):
         # for some sentences with strange configurations around the separator tokens, tokenizer encoding/decoding may contain
         # extra unnecessary tokens, for example ''. you may want to strip out spaces adjacent to separator tokens. Refer to PR
         # for more details.
+        print('out', out)
         return (np.array([out]),)
 
     def data_transform(self, s):
@@ -354,6 +357,8 @@ class SimpleTokenizer:
     def __call__(self, s, return_offsets_mapping=True):
         """ Tokenize the passed string, optionally returning the offsets of each token in the original string.
         """
+        print('SimpleTokenizer')
+        print('s', s)
         pos = 0
         offset_ranges = []
         input_ids = []
