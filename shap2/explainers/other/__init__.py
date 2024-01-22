@@ -2,6 +2,7 @@ import warnings
 
 from ._coefficient import Coefficient
 from ._lime import LimeTabular
+from ._lime_text import LimeTextGeneration
 from ._maple import Maple, TreeMaple
 from ._random import Random
 from ._treegain import TreeGain
@@ -9,6 +10,7 @@ from ._treegain import TreeGain
 __all__ = [
     "Coefficient",
     "LimeTabular",
+    "LimeTextGeneration",
     "Maple",
     "TreeMaple",
     "Random",

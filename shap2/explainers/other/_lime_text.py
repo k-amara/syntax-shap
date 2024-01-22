@@ -1,14 +1,11 @@
 import pandas as pd
-from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
-import seaborn as sns
 from sklearn.pipeline import make_pipeline
 from lime.lime_text import LimeTextExplainer
 from sklearn.linear_model import LogisticRegression
 from sklearn.feature_extraction.text import TfidfVectorizer
-from collections import OrderedDict
 import numpy as np
 
+from .._explainer import Explainer
 
 class LimeTextGeneration(Explainer):
     """ Simply wrap of lime.lime_tabular.LimeTabularExplainer into the common shap interface.
@@ -37,13 +34,13 @@ class LimeTextGeneration(Explainer):
         # get all vocabulary for text generation
         voc = model.tokenizer.get_vocab()
         inv_voc = {v: k for k, v in voc.items()}
-        vocab = dict(sorted(inv_voc.items()))
+        self.vocab = dict(sorted(inv_voc.items()))
 
 
         if isinstance(data, pd.DataFrame):
             data = data.values
         self.data = data
-        self.explainer = LimeTextExplainer(class_names = vocab)
+        self.explainer = LimeTextExplainer(class_names = self.vocab)
         self.predictions = self.model(data).reshape(-1)
 
         out = self.model(data[0:1])
@@ -74,11 +71,13 @@ class LimeTextGeneration(Explainer):
 
         c = make_pipeline(self.tfidf_vc, self.linear_model)
         explainer = LimeTextExplainer(class_names = self.vocab)
-
+        attributions = []
         for i in range(X.shape[0]):
             exp = explainer.explain_instance(X[i], c.predict_proba, num_features = 20)
-            print(exp.as_list())
-
-        return out[0] if self.flat_out else out
+            words_order = X[i].split(" ")
+            exp_dict = dict(exp.as_list())
+            sorted_dict = {k: exp_dict[k] for k in words_order if k in exp_dict}
+            attributions.append(list(sorted_dict.values()))
+        return attributions
 
 
