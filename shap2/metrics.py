@@ -128,12 +128,27 @@ def get_scores(str_inputs, shapley_scores, pipeline, k=0.2, token_id=0):
     # probs: probabilities of the initial predicted token with the full input sentences
     probs_keep_pad = torch.Tensor([probabilities_keep_pad[enum, item] for enum, item in enumerate(predictions_orig)]).detach().cpu().numpy()
 
+    # mask replace the unimportant words with <pad>
+    # add <pad> token to the string inputs where masks are 0
+    masked_inputs = inputs.copy()
+    for i, mask in enumerate(masks):
+       inv_mask = 1 - mask
+       masked_inputs['input_ids'][i][-len(mask):][inv_mask == 0] = pipeline.tokenizer.pad_token_id
+    _, probabilities_rmv_pad = run_model(masked_inputs, pipeline)
+    # probs: probabilities of the initial predicted token with the full input sentences
+    probs_rmv_pad = torch.Tensor([probabilities_rmv_pad[enum, item] for enum, item in enumerate(predictions_orig)]).detach().cpu().numpy()
+
+
     # Calculate accuracy
     acc = np.sum((predictions_keep == predictions_orig).detach().cpu().numpy())/len(predictions_keep)
 
     # Calculate fidelity remove important words - AOPC
+    fid_rmv_pad = probs_orig - probs_rmv_pad
+    # Calculate fidelity remove important words - AOPC
     fid_rmv = probs_orig - probs_rmv
 
+    # Calculate fidelity keep important words
+    fid_keep_pad = probs_orig - probs_keep_pad
     # Calculate fidelity keep important words
     fid_keep = probs_orig - probs_keep
 
@@ -150,6 +165,8 @@ def get_scores(str_inputs, shapley_scores, pipeline, k=0.2, token_id=0):
 
     return {
         "acc": acc,
+        "fid_keep_pad": fid_keep_pad,
+        "fid_rmv_pad": fid_rmv_pad,
         "fid_keep": fid_keep,
         "fid_rmv": fid_rmv,
         "kl_div_mean": kl_div_mean.item(),
@@ -162,8 +179,6 @@ def save_scores(args, scores):
     save_dir = os.path.join(args.result_save_dir, 'scores')
     os.makedirs(save_dir, exist_ok=True)
     filename = f"scores_{args.dataset}_{args.model_name}_{args.algorithm}"
-    if eval(args.weighted):
-        filename += "_weighted"
     filename += ".pkl"
     with open(os.path.join(save_dir, filename), "wb") as f:
         pickle.dump(scores, f)

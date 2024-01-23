@@ -93,6 +93,13 @@ def arg_parse():
         default='False', # False or True
     )
 
+    parser.add_argument(
+        "--k",
+        help="The percentage of important indices ",
+        type=float,
+        default=0.2, 
+    )
+
     args, unknown = parser.parse_known_args()
     return parser, args
 

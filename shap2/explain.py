@@ -31,12 +31,14 @@ def main(args):
     if args.model_name == "gpt2":
         model_load = args.model_name
         tokenizer_load = args.model_name
+        model = AutoModelForCausalLM.from_pretrained(model_load)
+        model.to(device)
     elif args.model_name == "mistral":
         model_load = "mistralai/Mistral-7B-v0.1"
         tokenizer_load = os.path.join(args.model_save_dir, args.model_name) + "/tokenizer"
+        model = AutoModelForCausalLM.from_pretrained(model_load, load_in_4bit=True) #, torch_dtype=torch.float16, device_map="auto")
+        #model.to(device)
 
-    model = AutoModelForCausalLM.from_pretrained(model_load)
-    model.to(device)
     # model.save_pretrained(f'/cluster/work/zhang/kamara/syntax-shap/models/{args.model_name}')
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_load)
     tokenizer.pad_token = tokenizer.eos_token
@@ -88,7 +90,7 @@ def main(args):
         explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="exact", weighted=False)
     elif args.algorithm == "dtree":
         explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="dtree", weighted=False)
-    elif args.algorithm == "dtree_w":
+    elif args.algorithm == "dtreew":
         explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="dtree", weighted=True)
     elif args.algorithm == "r-dtree":
         explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="r-dtree", weighted=eval(args.weighted))
@@ -113,7 +115,7 @@ def main(args):
     print("Done!")
     
     #### Evaluate the explanations ####
-    scores = get_scores(filtered_data, filtered_explanations, lmmodel)
+    scores = get_scores(filtered_data, filtered_explanations, lmmodel, k=args.k)
     print("scores", scores)
     save_scores(args, scores)
 
