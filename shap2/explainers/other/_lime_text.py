@@ -4,6 +4,7 @@ from lime.lime_text import LimeTextExplainer
 from sklearn.linear_model import LogisticRegression
 from sklearn.feature_extraction.text import TfidfVectorizer
 import numpy as np
+import pickle
 
 from .._explainer import Explainer
 
@@ -58,6 +59,7 @@ class LimeTextGeneration(Explainer):
             self.flat_out = False
 
         self.fit_linear_model()
+        self._s = None
 
     def fit_linear_model(self):
         # vectorize to tf-idf vectors
@@ -68,7 +70,6 @@ class LimeTextGeneration(Explainer):
         self.linear_model = linear_model.fit(data_vc, self.predictions)        
 
     def __call__(self, X):
-
         c = make_pipeline(self.tfidf_vc, self.linear_model)
         explainer = LimeTextExplainer(class_names = self.vocab)
         attributions = []
@@ -77,7 +78,14 @@ class LimeTextGeneration(Explainer):
             words_order = X[i].split(" ")
             exp_dict = dict(exp.as_list())
             sorted_dict = {k: exp_dict[k] for k in words_order if k in exp_dict}
-            attributions.append(list(sorted_dict.values()))
-        return attributions
+            attributions.append(np.array(list(sorted_dict.values()))[:, np.newaxis])
+        self._s = attributions
+        return self._s
+    
+    def _save(self, filename):
+        if self._s is None:
+            raise Exception("You must run the explainer before saving it!")
+        with open(filename, 'wb') as outp:  # Overwrites any existing file.
+            pickle.dump(self._s, outp, pickle.HIGHEST_PROTOCOL)
 
 

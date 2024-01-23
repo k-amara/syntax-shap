@@ -161,7 +161,10 @@ class TextGeneration(Model):
                 else:
                     inputs = self.get_inputs(X, padding_side="left")
                 if self.device is not None:
+                    print('inputs', inputs)
                     inputs = inputs.to(self.device)
+                print("inputs on device", inputs['input_ids'].device)
+                print("inner model on device", self.inner_model.device)
                 outputs = self.inner_model.generate(**inputs, **text_generation_params, return_dict_in_generate=True, output_scores=True)
         elif self.model_type == "tf":
             if self.inner_model.config.is_encoder_decoder:
@@ -228,6 +231,7 @@ class TextGeneration(Model):
                 else:
                     inputs = self.get_inputs(X, padding_side="left")
                 if self.device is not None:
+                    print('inputs', inputs)
                     inputs = inputs.to(self.device)
                 print("inputs on device", inputs['input_ids'].device)
                 print("inner model on device", self.inner_model.device)

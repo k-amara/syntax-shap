@@ -3,6 +3,7 @@ import os
 from metrics import get_scores, save_scores
 
 import explainers
+from explainers.other import LimeTextGeneration
 import models
 import numpy as np
 import shap
@@ -81,29 +82,38 @@ def main(args):
         explainer = shap.explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
     elif args.algorithm == "partition":
         explainer = explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
+    elif args.algorithm == "lime":
+        explainer = LimeTextGeneration(lmmodel, filtered_data)
     elif args.algorithm == "exact":
-        explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="exact", weighted=eval(args.weighted))
+        explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="exact", weighted=False)
     elif args.algorithm == "dtree":
-        explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="dtree", weighted=eval(args.weighted))
+        explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="dtree", weighted=False)
+    elif args.algorithm == "dtree_w":
+        explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="dtree", weighted=True)
     elif args.algorithm == "r-dtree":
         explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="r-dtree", weighted=eval(args.weighted))
     else:
         raise InvalidAlgorithmError("Unknown dependency tree algorithm type passed: %s!" % args.algorithm)
-    shap_values = explainer(filtered_data)
+    shap_values = explainer(filtered_data[:10])
 
     #### Save the shap values ####
     save_dir = os.path.join(args.result_save_dir, 'shap_values')
+    os.makedirs(save_dir, exist_ok=True)
     filename = f"shap_values_{args.dataset}_{args.model_name}_{args.algorithm}"
     if eval(args.weighted):
         filename += "_weighted"
     filename += ".pkl"
-    shap_values._save(os.path.join(save_dir, filename))
+    if args.algorithm == "lime":
+        explainer._save(os.path.join(save_dir, filename))
+        filtered_explanations = explainer._s
+    else: 
+        shap_values._save(os.path.join(save_dir, filename))
+        filtered_explanations = shap_values.values
+
     print("Done!")
     
     #### Evaluate the explanations ####
-    filtered_explanations = shap_values.values
-
-    scores = get_scores(args, filtered_data, filtered_explanations, lmmodel)
+    scores = get_scores(filtered_data[:10], filtered_explanations, lmmodel)
     print("scores", scores)
     save_scores(args, scores)
 

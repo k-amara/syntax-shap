@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import os
 import pickle
 from utils import arg_parse, fix_random_seed
+from tokenizers import Encoding
 
 # old_prediction = get_pred_token(text, new_tokens=1)
 UNABLE_TO_SWITCH = -1
@@ -28,14 +29,12 @@ def has_prediction_changed(text, words_to_remove, old_prediction, pipeline, toke
 
 def remove_word(text, words, tokenize=None):
     """ Remove words from text using the tokenizer provided by the vectorizer"""
-    print(words)
     # First, tokenize
     tokens = []
     #if not tokenize:
     tokens = text.split(' ')#re.split(r'(%s)|$' % r'\W+', text) # this comes from LIME code
     #else:
         #tokens = tokenize(text)
-    print(tokens)
     tokens_new = []
     for token in tokens:
         if token not in words and len(token.strip()) > 0:
@@ -68,7 +67,7 @@ def generate_explanatory_masks(str_inputs, shapley_scores, k, token_id):
         split_point = int(k * n_words)
         important_indices = (-shapley_scores_i).argsort()[:split_point]
 
-        mask = torch.zeros(n_words)
+        mask = np.zeros(n_words)
         mask[important_indices] = 1
         masks.append(mask)
     return masks
@@ -84,6 +83,7 @@ def padleft_mask(masks, max_length):
 # aopc corresponds to fidelity+ --> 1 - we remove the explanation
 
 def run_model(inputs, pipeline):
+    inputs = inputs.to(pipeline.device)
     outputs = pipeline.inner_model.generate(**inputs, max_new_tokens=1, return_dict_in_generate=True, output_scores=True)
     predictions = outputs.sequences[:,-1]
     probabilities = F.softmax(outputs.scores[0], dim=1)
@@ -98,38 +98,38 @@ def get_scores(str_inputs, shapley_scores, pipeline, k=0.2, token_id=0):
     # inputs are token ids (input_ids) and attention masks (attention_mask)
     inputs = pipeline.get_inputs(str_inputs, padding_side='left')
     predictions_orig, probabilities_orig = run_model(inputs, pipeline)
-    probs_orig = probabilities_orig[:, predictions_orig] #torch.Tensor([probabilities_orig[enum, item] for enum, item in enumerate(predictions_orig)])
+    probs_orig = torch.Tensor([probabilities_orig[enum, item] for enum, item in enumerate(predictions_orig)]).detach().cpu().numpy()
 
     # initial masks
     masks = generate_explanatory_masks(str_inputs, shapley_scores, k, token_id)
 
     # mask keep the important words
     new_attention_masks = padleft_mask(masks, max_length = max_length)
-    inputs_keep = {'input_ids': inputs['input_ids'], 'attention_mask':new_attention_masks}
+    inputs_keep = inputs.copy()
+    inputs_keep['attention_mask'] = torch.Tensor(new_attention_masks).to(dtype=torch.long)
     predictions_keep, probabilities_keep = run_model(inputs_keep, pipeline)
-    probs_keep = probabilities_keep[:, predictions_orig]# torch.Tensor([probabilities_keep[enum, item] for enum, item in enumerate(predictions_orig)])
+    probs_keep = torch.Tensor([probabilities_keep[enum, item] for enum, item in enumerate(predictions_orig)]).detach().cpu().numpy()
 
 
     # mask remove the important words
     new_attention_masks = 1-padleft_mask(masks, max_length = max_length)
-    inputs_rmv = {'input_ids': inputs['input_ids'], 'attention_mask':new_attention_masks}
+    inputs_rmv = inputs.copy()
+    inputs_rmv['attention_mask'] = torch.Tensor(new_attention_masks).to(dtype=torch.long)
     _, probabilities_rmv = run_model(inputs_rmv, pipeline)
-    probs_rmv = torch.Tensor([probabilities_rmv[enum, item] for enum, item in enumerate(predictions_orig)])
+    probs_rmv = torch.Tensor([probabilities_rmv[enum, item] for enum, item in enumerate(predictions_orig)]).detach().cpu().numpy()
 
 
     # mask replace the unimportant words with <pad>
     # add <pad> token to the string inputs where masks are 0
-    masked_str_inputs = inputs.copy()
+    masked_inputs = inputs.copy()
     for i, mask in enumerate(masks):
-       masked_str_inputs['input_ids'][i][mask == 0] = pipeline.tokenizer.pad_token_id
-    masked_inputs = pipeline.get_inputs(masked_str_inputs, padding_side='left')
+       masked_inputs['input_ids'][i][-len(mask):][mask == 0] = pipeline.tokenizer.pad_token_id
     _, probabilities_keep_pad = run_model(masked_inputs, pipeline)
     # probs: probabilities of the initial predicted token with the full input sentences
-    probs_keep_pad = torch.Tensor([probabilities_keep_pad[enum, item] for enum, item in enumerate(predictions_orig)])
-
+    probs_keep_pad = torch.Tensor([probabilities_keep_pad[enum, item] for enum, item in enumerate(predictions_orig)]).detach().cpu().numpy()
 
     # Calculate accuracy
-    acc = np.sum(predictions_keep == predictions_orig)/len(predictions_keep)
+    acc = np.sum((predictions_keep == predictions_orig).detach().cpu().numpy())/len(predictions_keep)
 
     # Calculate fidelity remove important words - AOPC
     fid_rmv = probs_orig - probs_rmv
@@ -146,20 +146,21 @@ def get_scores(str_inputs, shapley_scores, pipeline, k=0.2, token_id=0):
         kl_div_scores.append(kl_div.item())
 
     # Calculate log-odds
-    log_odds = np.log(probs_keep_pad + 1e-6) - np.log(1 - probs_orig + 1e-6)
+    log_odds = np.log(probs_keep_pad + 1e-6) - np.log(probs_orig + 1e-6)
 
     return {
         "acc": acc,
         "fid_keep": fid_keep,
         "fid_rmv": fid_rmv,
-        "kl_div_mean": kl_div_mean,
-        "kl_div_batchmean": kl_div_batchmean,
+        "kl_div_mean": kl_div_mean.item(),
+        "kl_div_batchmean": kl_div_batchmean.item(),
         "kl_div_scores": kl_div_scores,
         "log_odds": log_odds,
     }
 
 def save_scores(args, scores):
     save_dir = os.path.join(args.result_save_dir, 'scores')
+    os.makedirs(save_dir, exist_ok=True)
     filename = f"scores_{args.dataset}_{args.model_name}_{args.algorithm}"
     if eval(args.weighted):
         filename += "_weighted"
@@ -177,7 +178,6 @@ if __name__ == "__main__":
     else:
         weighted = False
     w_str = "_weighted" if weighted else ""
-    print("w_str", w_str)
     save_dir = os.path.join(args.result_save_dir, 'shap_values')
     filename = f"shap_values_{args.dataset}_{args.model_name}_{args.algorithm}"
     if eval(args.weighted):

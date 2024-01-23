@@ -418,7 +418,7 @@ class Explainer(Serializable):
         """ Write the explainer to the given file stream.
         """
         super().save(out_file)
-        with Serializer(out_file, "shap.Explainer", version=0) as s:
+        with Serializer(out_file, "shap2.Explainer", version=0) as s:
             s.save("model", self.model, model_saver)
             s.save("masker", self.masker, masker_saver)
             s.save("link", self.link)
