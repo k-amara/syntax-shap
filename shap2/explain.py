@@ -94,7 +94,7 @@ def main(args):
         explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="r-dtree", weighted=eval(args.weighted))
     else:
         raise InvalidAlgorithmError("Unknown dependency tree algorithm type passed: %s!" % args.algorithm)
-    shap_values = explainer(filtered_data[:10])
+    shap_values = explainer(filtered_data)
 
     #### Save the shap values ####
     save_dir = os.path.join(args.result_save_dir, 'shap_values')
@@ -113,7 +113,7 @@ def main(args):
     print("Done!")
     
     #### Evaluate the explanations ####
-    scores = get_scores(filtered_data[:10], filtered_explanations, lmmodel)
+    scores = get_scores(filtered_data, filtered_explanations, lmmodel)
     print("scores", scores)
     save_scores(args, scores)
 
