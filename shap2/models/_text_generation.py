@@ -59,6 +59,8 @@ class TextGeneration(Model):
         self.X = None
         # target sentence/ids generated from the model using X
         self.target_X = None
+        # Only output the generated tokens
+        # self.inner_model.config["is_decoder"] = True
 
     def __call__(self, X):
         """ Generates target sentence/ids from X.
@@ -89,7 +91,7 @@ class TextGeneration(Model):
         self.explanation_row += 1
         return np.array(self.target_X)
 
-    def get_inputs(self, X, padding_side='right'):
+    def get_inputs(self, X, padding_side='left'):
         """ The function tokenizes source sentences.
 
         In model agnostic case, the function calls model(X) which is expected to
@@ -108,11 +110,12 @@ class TextGeneration(Model):
         # set tokenizer padding to prepare inputs for batch inferencing
         # padding_side="left" for only decoder models text generation eg. GPT2
         self.tokenizer.padding_side = padding_side
-        inputs = self.tokenizer(X.tolist(), return_tensors=self.model_type, padding=True)
+        inputs = self.tokenizer(X.tolist(), return_tensors=self.model_type, padding=True)#, add_special_tokens=False)
         # set tokenizer padding to default
-        # self.tokenizer.padding_side = 'right'
+        # self.tokenizer.padding_side = 'left'
         return inputs
 
+    
     def get_outputs(self, X):
         """ This function performs text generation for tensorflow and pytorch models.
 
@@ -124,7 +127,7 @@ class TextGeneration(Model):
         Returns
         -------
         numpy.ndarray
-            Returns outputs with scores and attentions.
+            Returns target sentence ids.
         """
         if (hasattr(self.inner_model.config, "is_encoder_decoder") and not self.inner_model.config.is_encoder_decoder) \
                 and (hasattr(self.inner_model.config, "is_decoder") and not self.inner_model.config.is_decoder):
@@ -148,6 +151,8 @@ class TextGeneration(Model):
             for k in list(text_generation_params.keys()):
                 if hasattr(self.inner_model.config, k):
                     del text_generation_params[k]
+        text_generation_params['max_new_tokens']=1
+        text_generation_params['do_sample']=True
         if self.model_type == "pt":
             # create torch tensors and move to device
             # TODOmaybe: SML: why move the model from where it was? the could mess with the user env (i.e. it breaks pipelines)
@@ -161,11 +166,10 @@ class TextGeneration(Model):
                 else:
                     inputs = self.get_inputs(X, padding_side="left")
                 if self.device is not None:
-                    print('inputs', inputs)
                     inputs = inputs.to(self.device)
-                print("inputs on device", inputs['input_ids'].device)
-                print("inner model on device", self.inner_model.device)
                 outputs = self.inner_model.generate(**inputs, **text_generation_params, return_dict_in_generate=True, output_scores=True)
+                #if outputs[0].shape[0] > text_generation_params['max_new_tokens']:
+                    #outputs = outputs[:, -text_generation_params['max_new_tokens']:]
         elif self.model_type == "tf":
             if self.inner_model.config.is_encoder_decoder:
                 inputs = self.get_inputs(X)
@@ -180,8 +184,21 @@ class TextGeneration(Model):
                         outputs = self.inner_model.generate(inputs, **text_generation_params, return_dict_in_generate=True, output_scores=True)
                 except RuntimeError as err:
                     print(err)
-
-        return outputs
+        outputs_token = outputs.sequences.detach().cpu().numpy()
+        if getattr(self.inner_model.config, "is_decoder", True):
+            # slice the output ids after the input ids
+            outputs_token = outputs_token[:, inputs["input_ids"].shape[1]:]
+        # parse output ids to find special tokens in prefix and suffix
+        parsed_tokenizer_dict = self.parse_prefix_suffix_for_model_generate_output(outputs_token[0, :].tolist())
+        keep_prefix, keep_suffix = parsed_tokenizer_dict['keep_prefix'], parsed_tokenizer_dict['keep_suffix']
+        # extract target sentence ids by slicing off prefix and suffix
+        if keep_suffix > 0:
+            target_X = outputs_token[:, keep_prefix:-keep_suffix]
+        else:
+            target_X = outputs_token[:, keep_prefix:]
+        logits = outputs.scores[0].detach().cpu().numpy()
+        probabilities = torch.nn.functional.softmax(outputs.scores[0], dim=1).detach().cpu().numpy()
+        return target_X, logits, probabilities
 
     def model_generate(self, X):
         """ This function performs text generation for tensorflow and pytorch models.
@@ -218,6 +235,8 @@ class TextGeneration(Model):
             #for k in list(text_generation_params.keys()):
                 #if hasattr(self.inner_model.config, k):
                     #del text_generation_params[k]
+        text_generation_params['max_new_tokens']=1
+        text_generation_params['do_sample']=True
         if self.model_type == "pt":
             # create torch tensors and move to device
             # TODOmaybe: SML: why move the model from where it was? the could mess with the user env (i.e. it breaks pipelines)
@@ -231,11 +250,10 @@ class TextGeneration(Model):
                 else:
                     inputs = self.get_inputs(X, padding_side="left")
                 if self.device is not None:
-                    print('inputs', inputs)
                     inputs = inputs.to(self.device)
-                print("inputs on device", inputs['input_ids'].device)
-                print("inner model on device", self.inner_model.device)
                 outputs = self.inner_model.generate(**inputs, **text_generation_params).detach().cpu().numpy()
+                #if outputs[0].shape[0] > text_generation_params['max_new_tokens']:
+                    #outputs = outputs[:, -text_generation_params['max_new_tokens']:]
         elif self.model_type == "tf":
             if self.inner_model.config.is_encoder_decoder:
                 inputs = self.get_inputs(X)
@@ -262,6 +280,7 @@ class TextGeneration(Model):
         else:
             target_X = outputs[:, keep_prefix:]
         return target_X
+    
 
     def parse_prefix_suffix_for_model_generate_output(self, output):
         """ Calculates if special tokens are present in the beginning/end of the model generated output.

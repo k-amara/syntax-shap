@@ -82,24 +82,42 @@ def imdb(display=False, n_points=None):
 
     return data, y
 
-def inconsistent_negation(model, display=False):
+def inconsistent_negation(with_labels=False, display=False):
     """ Return the negation text generation training data in a nice package.
     """
-    github_local_data_url = os.getcwd() + "/data/"
-    tsv_file = open(github_local_data_url + "Inconsistent-Negation-Dataset.tsv")
+    path_to_dataset = os.getcwd() + "/data/"
+    tsv_file = open(path_to_dataset + "Inconsistent-Dataset-Negation.tsv")
     read_tsv = list(csv.reader(tsv_file, delimiter="\t"))
-    data = []
+    data, y = [], []
     for row in read_tsv:
         data.append(row[1][:-8])
-
-    inputs = model.encode_batch(data)
-    outputs = model.predict(inputs)
-    predictions = outputs.sequences
-    y = predictions[:, -1]
-
+        y.append(row[1][-7:])
+    data, y = np.array(data), np.array(y)
     return data, y
 
-
+def generics_kb(with_labels=False, display=False):
+    path_to_dataset = os.getcwd() + "/data/"
+    csv_file = open(path_to_dataset + "generics_kb_5_tokens.csv")
+    read_csv = pd.read_csv(csv_file, delimiter=",")
+    data = np.array(list(read_csv['sentence_without_last_token']))
+    if with_labels:
+        sentence = list(read_csv['sentence'])
+        y = np.array([s.split(' ')[-1].split('.')[0] for s in list(sentence)])
+        return data, y
+    else:
+        return data, None
+    
+def rocstories(with_labels=False, display=False):
+    path_to_dataset = os.getcwd() + "/data/"
+    csv_file = open(path_to_dataset + "rocstories_5_tokens.csv")
+    read_csv = pd.read_csv(csv_file, delimiter=",")
+    data = list(read_csv['sentence_without_last_token'])
+    if with_labels:
+        sentence = list(read_csv['sentence'])
+        y = np.array([s.split(' ')[-1].split('.')[0] for s in list(sentence)])
+        return data, y
+    else:
+        return data, None
 
 def communitiesandcrime(display=False, n_points=None):
     """ Predict total number of non-violent crimes per 100K popuation.

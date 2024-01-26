@@ -24,6 +24,7 @@ class MaskedModel:
         self.linearize_link = linearize_link
         self.args = args
 
+        self.null_token_id = model.tokenizer.convert_tokens_to_ids(["[MASK]"])[0]
         # if the masker supports it, save what positions vary from the background
         if callable(getattr(self.masker, "invariants", None)):
             self._variants = ~self.masker.invariants(*args)
@@ -77,14 +78,14 @@ class MaskedModel:
         varying_rows = []
         if self._variants is not None:
             delta_tmp = self._variants.copy().astype(int)
-        all_outputs = []
+        all_outputs, all_probs = [], []
+
         for batch_ind in range(0, len(masks), batch_size):
             mask_batch = masks[batch_ind:batch_ind + batch_size]
             all_masked_inputs = []
             num_mask_samples = np.zeros(len(mask_batch), dtype=int)
             last_mask = np.zeros(mask_batch.shape[1], dtype=bool)
             for i, mask in enumerate(mask_batch):
-
                 # mask the inputs
                 delta_mask = mask ^ last_mask
                 if do_delta_masking and delta_mask.sum() == 1:
@@ -100,7 +101,6 @@ class MaskedModel:
                 # wrap the masked inputs if they are not already in a tuple
                 if not isinstance(masked_inputs, tuple):
                     masked_inputs = (masked_inputs,)
-
                 # masked_inputs = self.masker(mask, *self.args)
                 num_mask_samples[i] = len(masked_inputs[0])
 
@@ -113,7 +113,6 @@ class MaskedModel:
                     # a = np.any(self._variants & delta_mask, axis=1)
                     # a = np.any(self._variants & delta_mask, axis=1)
                     # (self._variants & delta_mask).sum(1) > 0
-
                     np.bitwise_and(self._variants, delta_mask, out=delta_tmp)
                     varying_rows.append(np.any(delta_tmp, axis=1))#np.any(self._variants & delta_mask, axis=1))
                     num_varying_rows[batch_ind + i] = varying_rows[-1].sum()
@@ -122,7 +121,6 @@ class MaskedModel:
                 last_mask[:] = mask
 
                 batch_positions[batch_ind + i + 1] = batch_positions[batch_ind + i] + num_varying_rows[batch_ind + i]
-
                 # subset the masked input to only the rows that vary
                 if num_varying_rows[batch_ind + i] != num_mask_samples[i]:
                     if len(self.args) == 1:
@@ -133,26 +131,26 @@ class MaskedModel:
                     else:
                         masked_inputs_subset = [v[varying_rows[-1]] for v in zip(*masked_inputs[0])]
                     masked_inputs = (masked_inputs_subset,) + masked_inputs[1:]
-
                 # define no. of list based on output of masked_inputs
                 if len(all_masked_inputs) != len(masked_inputs):
                     all_masked_inputs = [[] for m in range(len(masked_inputs))]
 
                 for i, v in enumerate(masked_inputs):
                     all_masked_inputs[i].append(v)
-
             joined_masked_inputs = tuple([np.concatenate(v) for v in all_masked_inputs])
-            outputs = self.model(*joined_masked_inputs)
+            outputs, _, probs = self.model.get_outputs(*joined_masked_inputs)
             outputs_c = []
             for i, str_out in enumerate(outputs):
                 if not str_out:
-                    outputs_c.append(np.array([220], dtype=float))
+                    outputs_c.append(np.array([self.null_token_id], dtype=float))
                 else:
                     outputs_c.append(str_out)
             outputs = outputs_c
             _assert_output_input_match(joined_masked_inputs, outputs)
             all_outputs.append(outputs)
+            all_probs.append(probs)
         outputs = np.concatenate(all_outputs)
+        probs = np.concatenate(all_probs)
 
         if self.linearize_link and self.link != links.identity and self._linearizing_weights is None:
             self.background_outputs = outputs[batch_positions[zero_index]:batch_positions[zero_index+1]]
@@ -165,6 +163,7 @@ class MaskedModel:
 
         _build_fixed_output(averaged_outs, last_outs, outputs, batch_positions, varying_rows, num_varying_rows, self.link, self._linearizing_weights)
 
+        self.probs = probs
         return averaged_outs
 
         # return self._build_output(outputs, batch_positions, varying_rows)
@@ -212,7 +211,7 @@ class MaskedModel:
         outputs_c = []
         for i, str_out in enumerate(outputs):
             if not str_out:
-                outputs_c.append(np.array([220], dtype=float))
+                outputs_c.append(np.array([self.null_token_id], dtype=float))
             else:
                 outputs_c.append(str_out)
         outputs = outputs_c

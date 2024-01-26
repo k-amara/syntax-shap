@@ -22,6 +22,7 @@ MODELS_FOR_SEQ_TO_SEQ_CAUSAL_LM = [
 
 MODELS_FOR_CAUSAL_LM = [
         "transformers.CamembertForCausalLM",
+        "transformers.MistralForCausalLM",
         "transformers.XLMRobertaForCausalLM",
         "transformers.RobertaForCausalLM",
         "transformers.BertLMHeadModel",

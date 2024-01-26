@@ -13,7 +13,7 @@ STORAGE = "/cluster/work/zhang/kamara/syntax-shap/"
 DATA_DIR = STORAGE + "data/"
 MODEL_DIR = STORAGE + "models/"
 FIG_DIR = CKPT_ROOT + "figures/"
-RESULT_DIR = CKPT_ROOT + "results/"
+RESULT_DIR = STORAGE + "results/"
 
 
 
@@ -85,16 +85,8 @@ def arg_parse():
         default="dtree", # ["partition", "exact", "dtree", "r-dtree"]
     )
 
-
     parser.add_argument(
-        "--weighted",
-        help="Weight on the contribution of each word based on its position in the tree (only for dtree and r-dtree)",
-        type=str,
-        default='False', # False or True
-    )
-
-    parser.add_argument(
-        "--k",
+        "--threshold",
         help="The percentage of important indices ",
         type=float,
         default=0.2, 

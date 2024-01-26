@@ -61,7 +61,6 @@ class Text(Masker):
         self.mask_token = mask_token # could be recomputed later in this function
         self.mask_token_id = mask_token if isinstance(mask_token, int) else None
         parsed_tokenizer_dict = parse_prefix_suffix_for_tokenizer(self.tokenizer)
-
         self.keep_prefix = parsed_tokenizer_dict['keep_prefix']
         self.keep_suffix = parsed_tokenizer_dict['keep_suffix']
         # self.prefix_strlen = parsed_tokenizer_dict['prefix_strlen']
@@ -114,8 +113,10 @@ class Text(Masker):
         # if we have a fixed prefix or suffix then we need to grow the mask to account for that
         if self.keep_prefix > 0 or self.keep_suffix > 0:
             mask = mask.copy()
-            mask[:self.keep_prefix] = True
-            mask[-self.keep_suffix:] = True
+            if self.keep_prefix > 0:
+                mask[:self.keep_prefix] = True
+            if self.keep_suffix > 0:
+                mask[-self.keep_suffix:] = True
 
         if self.output_type == "string":
             # if self.mask_token == "":
@@ -173,7 +174,7 @@ class Text(Masker):
         """
 
         try:
-            token_data = self.tokenizer(s, return_offsets_mapping=True)
+            token_data = self.tokenizer(s, return_offsets_mapping=True)#, add_special_tokens=False)
             offsets = token_data["offset_mapping"]
             offsets = [(0, 0) if o is None else o for o in offsets]
             parts = [s[offsets[i][0]:max(offsets[i][1], offsets[i+1][0])] for i in range(len(offsets)-1)]

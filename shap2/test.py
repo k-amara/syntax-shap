@@ -7,7 +7,6 @@ from explainers.other import LimeTextGeneration
 import models
 import numpy as np
 import shap
-from datasets import generics_kb, inconsistent_negation, rocstories
 import torch
 import pickle
 import transformers
@@ -55,7 +54,7 @@ def main(args):
 
 
     # model.save_pretrained(f'/cluster/work/zhang/kamara/syntax-shap/models/{args.model_name}')
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_load)
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_load, is_fast=False)
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "left"
     
@@ -63,11 +62,15 @@ def main(args):
 
     #### Prepare the data ####
     if args.dataset == "negation":
-        data, _ = inconsistent_negation()
-    elif args.dataset == "generics":
-        data, _ = generics_kb()
-    elif args.dataset == "rocstories":
-        data, _ = rocstories()
+        data_file = "Inconsistent-Dataset-Negation.tsv"
+    data_path = os.path.join(args.data_save_dir, data_file)
+    tsv_file = open(data_path)
+    read_tsv = list(csv.reader(tsv_file, delimiter="\t"))
+    data = []
+    for row in read_tsv:
+        data.append(row[1][:-8])
+    data = np.array(data)
+    print(f"Inconsistent-Dataset-Negation.tsv: {len(data)}")
 
     #### Filter invalid data ####
     # Tokenization might split words into multiple tokens, which is not supported by the current implementation
@@ -86,44 +89,36 @@ def main(args):
     save_dir = os.path.join(args.result_save_dir, 'shap_values')
     os.makedirs(save_dir, exist_ok=True)
     filename = f"shap_values_{args.dataset}_{args.model_name}_{args.algorithm}.pkl"
-    if os.path.exists(os.path.join(save_dir, filename)):
-        print("Loading shap values...")
-        filtered_explanations = pickle.load(open(os.path.join(save_dir, filename), "rb"))
-        if args.algorithm != "lime":
-            filtered_explanations = filtered_explanations.values
+
+    #### Explain the model ####
+    if args.algorithm == "partition_init":
+        explainer = shap.explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
+    elif args.algorithm == "partition":
+        explainer = explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
+    elif args.algorithm == "lime":
+        explainer = LimeTextGeneration(lmmodel, filtered_data)
+    elif args.algorithm == "exact":
+        explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="exact", weighted=False)
+    elif args.algorithm == "dtree":
+        explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="dtree", weighted=False)
+    elif args.algorithm == "dtreew":
+        explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="dtree", weighted=True)
+    elif args.algorithm == "r-dtree":
+        explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="r-dtree", weighted=False)
     else:
+        raise InvalidAlgorithmError("Unknown dependency tree algorithm type passed: %s!" % args.algorithm)
+    shap_values = explainer(filtered_data[:5])
 
-        #### Explain the model ####
-        if args.algorithm == "partition_init":
-            explainer = shap.explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
-        elif args.algorithm == "partition":
-            explainer = explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
-        elif args.algorithm == "lime":
-            explainer = LimeTextGeneration(lmmodel, filtered_data)
-        elif args.algorithm == "exact":
-            explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="exact", weighted=False)
-        elif args.algorithm == "dtree":
-            explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="dtree", weighted=False)
-        elif args.algorithm == "dtreew":
-            explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="dtree", weighted=True)
-        elif args.algorithm == "r-dtree":
-            explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="r-dtree", weighted=False)
-        else:
-            raise InvalidAlgorithmError("Unknown dependency tree algorithm type passed: %s!" % args.algorithm)
-        shap_values = explainer(filtered_data)
-
-        #### Save the shap values ####
-        if args.algorithm == "lime":
-            explainer._save(os.path.join(save_dir, filename))
-            filtered_explanations = explainer._s
-        else: 
-            shap_values._save(os.path.join(save_dir, filename))
-            filtered_explanations = shap_values.values
+    #### Save the shap values ####
+    if args.algorithm == "lime":
+        filtered_explanations = explainer._s
+    else: 
+        filtered_explanations = shap_values.values
 
     print("Done!")
     
     #### Evaluate the explanations ####
-    scores = get_scores(filtered_data, filtered_explanations, lmmodel, args.threshold)
+    scores = get_scores(filtered_data[:5], filtered_explanations, lmmodel, args.threshold)
     print("scores", scores)
     save_scores(args, scores)
 

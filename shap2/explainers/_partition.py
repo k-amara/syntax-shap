@@ -136,10 +136,8 @@ class PartitionExplainer(Explainer):
             fixed_context = None
         elif fixed_context not in [0, 1, None]:
             raise ValueError("Unknown fixed_context value passed (must be 0, 1 or None): %s" %fixed_context)
-
         # build a masked version of the model for the current input sample
         fm = MaskedModel(self.model, self.masker, self.link, self.linearize_link, *row_args)
-
         # make sure we have the base value and current value outputs
         M = len(fm)
         m00 = np.zeros(M, dtype=bool)
@@ -226,7 +224,7 @@ class PartitionExplainer(Explainer):
             f11 = f11[output_indexes]
 
         q = queue.PriorityQueue()
-        q.put((0, 0, (f00, f11, ind, 1.0, m00)))
+        q.put((0, 0, (ind, 1.0, f00, f11, m00)))
         eval_count = 0
         total_evals = min(max_evals, (M-1)*M) # TODO: (M-1)*M is only right for balanced clusterings, but this is just for plotting progress...
         pbar = None
@@ -235,7 +233,7 @@ class PartitionExplainer(Explainer):
             # if we passed our execution limit then leave everything else on the internal nodes
             if eval_count >= max_evals:
                 while not q.empty():
-                    f00, f11, ind, weight, m00 = q.get()[2]
+                    ind, weight, f00, f11, m00 = q.get()[2]
                     self.dvalues[ind] += (f11 - f00) * weight
                 break
 
@@ -245,7 +243,8 @@ class PartitionExplainer(Explainer):
             while not q.empty() and len(batch_masks) < batch_size and eval_count + len(batch_masks) < max_evals:
 
                 # get our next set of arguments
-                f00, f11, ind, weight, m00 = q.get()[2]
+                print("q: ", q.queue)
+                ind, weight, f00, f11, m00 = q.get()[2]
 
                 # get the left and right children of this cluster
                 lind = int(self._clustering[ind-M, 0]) if ind >= M else -1
@@ -310,20 +309,20 @@ class PartitionExplainer(Explainer):
 
                 if fixed_context is None or fixed_context == 0:
                     # recurse on the left node with zero context
-                    args = (f00, f10, lind, weight, m00)
+                    args = (lind, weight, f00, f10, m00)
                     q.put((-np.max(np.abs(f10 - f00)) * new_weight, np.random.randn(), args))
 
                     # recurse on the right node with zero context
-                    args = (f00, f01, rind, weight, m00)
+                    args = (rind, weight, f00, f01, m00)
                     q.put((-np.max(np.abs(f01 - f00)) * new_weight, np.random.randn(), args))
 
                 if fixed_context is None or fixed_context == 1:
                     # recurse on the left node with one context
-                    args = (f01, f11, lind, weight, m01)
+                    args = (lind, weight, f01, f11, m01)
                     q.put((-np.max(np.abs(f11 - f01)) * new_weight, np.random.randn(), args))
 
                     # recurse on the right node with one context
-                    args = (f10, f11, rind, weight, m10)
+                    args = (rind, weight, f10, f11, m10)
                     q.put((-np.max(np.abs(f11 - f10)) * new_weight, np.random.randn(), args))
 
         if pbar is not None:
