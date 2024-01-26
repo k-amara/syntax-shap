@@ -82,24 +82,32 @@ def imdb(display=False, n_points=None):
 
     return data, y
 
-def inconsistent_negation(with_labels=False, display=False):
+def inconsistent_negation(data_save_dir, with_labels=False, display=False):
     """ Return the negation text generation training data in a nice package.
     """
-    path_to_dataset = os.getcwd() + "/data/"
-    tsv_file = open(path_to_dataset + "Inconsistent-Dataset-Negation.tsv")
+    path_to_data = os.path.join(data_save_dir, "negation")
+    os.makedirs(path_to_data, exist_ok=True)
+    tsv_file = open(os.path.join(path_to_data, "Inconsistent-Dataset-Negation.tsv"))
+    if not os.path.exists(tsv_file):
+        raise ValueError("The dataset negation is not found")
     read_tsv = list(csv.reader(tsv_file, delimiter="\t"))
     data, y = [], []
     for row in read_tsv:
         data.append(row[1][:-8])
         y.append(row[1][-7:])
     data, y = np.array(data), np.array(y)
+    print(f"Loading Inconsistent Negation dataset: {data.shape[0]}")
     return data, y
 
-def generics_kb(with_labels=False, display=False):
-    path_to_dataset = os.getcwd() + "/data/"
-    csv_file = open(path_to_dataset + "generics_kb_5_tokens.csv")
+def generics_kb(data_save_dir, with_labels=False, display=False):
+    path_to_data = os.path.join(data_save_dir, "generics")
+    os.makedirs(path_to_data, exist_ok=True)
+    csv_file = open(os.path.join(path_to_data, "generics_kb_5_tokens.csv"))
+    if not os.path.exists(csv_file):
+        raise ValueError("The dataset generics is not found")
     read_csv = pd.read_csv(csv_file, delimiter=",")
     data = np.array(list(read_csv['sentence_without_last_token']))
+    print(f"Loading Generics dataset: {data.shape[0]}")
     if with_labels:
         sentence = list(read_csv['sentence'])
         y = np.array([s.split(' ')[-1].split('.')[0] for s in list(sentence)])
@@ -107,11 +115,15 @@ def generics_kb(with_labels=False, display=False):
     else:
         return data, None
     
-def rocstories(with_labels=False, display=False):
-    path_to_dataset = os.getcwd() + "/data/"
-    csv_file = open(path_to_dataset + "rocstories_5_tokens.csv")
+def rocstories(data_save_dir, with_labels=False, display=False):
+    path_to_data = os.path.join(data_save_dir, "rocstories")
+    os.makedirs(path_to_data, exist_ok=True)
+    csv_file = open(os.path.join(path_to_data, "rocstories_5_tokens.csv"))
+    if not os.path.exists(csv_file):
+        raise ValueError("The dataset rocstories is not found")
     read_csv = pd.read_csv(csv_file, delimiter=",")
     data = list(read_csv['sentence_without_last_token'])
+    print(f"Loading Rocstories dataset: {data.shape[0]}")
     if with_labels:
         sentence = list(read_csv['sentence'])
         y = np.array([s.split(' ')[-1].split('.')[0] for s in list(sentence)])

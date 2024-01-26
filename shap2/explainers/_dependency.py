@@ -16,6 +16,7 @@ from utils import (
     safe_isinstance,
     spacy_doc_to_tree,
 )
+from utils.transformers import parse_prefix_suffix_for_tokenizer
 
 
 def convert_feat_to_mask(feature, m):
@@ -172,6 +173,12 @@ class DependencyExplainer(Explainer):
         self.weighted = weighted
         self.confounding = confounding
 
+        parsed_tokenizer_dict = parse_prefix_suffix_for_tokenizer(masker)
+        self.keep_prefix = parsed_tokenizer_dict['keep_prefix']
+        self.keep_suffix = parsed_tokenizer_dict['keep_suffix']
+        print("keep_prefix", self.keep_prefix)
+        print("keep_suffix", self.keep_suffix)
+
         # handle higher dimensional tensor inputs
         if self.input_shape is not None and len(self.input_shape) > 1:
             self._reshaped_model = lambda x: self.model(x.reshape(x.shape[0], *self.input_shape))
@@ -208,10 +215,17 @@ class DependencyExplainer(Explainer):
 
         # build a masked version of the model for the current input sample
         fm = MaskedModel(self.model, self.masker, self.link, self.linearize_link, *row_args)
-
+        print("self.algorithm", self.algorithm)
         # make sure we have the base value and current value outputs
-        M = len(fm)
-        m00 = np.zeros(M, dtype=bool)
+        print("row_args", row_args)
+        mask_size_with_prefix_and_suffix = len(fm)
+        M = mask_size_with_prefix_and_suffix - self.keep_prefix - self.keep_suffix
+        print("row_args", row_args[0].split(' '))
+        print("len row args", len(row_args[0].split(' ')))
+        print("M", M)
+        assert M == len(row_args[0].split(' '))
+        print("m00 has prefix+suffix - should not raise error")
+        m00 = np.zeros(mask_size_with_prefix_and_suffix, dtype=bool)
         # if not fixed background or no base value assigned then compute base value for a row
         if self._curr_base_value is None or not getattr(self.masker, "fixed_background", False):
             self._curr_base_value = fm(m00.reshape(1, -1), zero_index=0)[0] # the zero index param tells the masked model what the baseline is
@@ -237,9 +251,11 @@ class DependencyExplainer(Explainer):
         self.values = np.zeros(out_shape)
         self.dvalues = np.zeros(out_shape)
 
-        if self.algorithm.endswith('dtree'):
+        if 'dtree' in self.algorithm:
             # Build the dependency dataframe
+            print("algo dtree detected")
             dependency_dt = self.dependency_dt(*row_args)
+            print("dependency_dt", dependency_dt)
         else:
             dependency_dt = None
         self.compute_shapley_values(fm, self._curr_base_value, M, algorithm=self.algorithm, weighted=self.weighted, dependency_dt=dependency_dt, confounding=self.confounding)
@@ -267,19 +283,23 @@ class DependencyExplainer(Explainer):
         # Example usage with the Tree structure
         tree_df = create_dataframe_from_tree(tree_root)
         tree_df = tree_df[tree_df['token'] != 'MASK']
+        print("tree_df", tree_df)
         return tree_df
 
     def compute_shapley_values(self, fm, f00, M, algorithm='dtree', dependency_dt=None, weighted=False, confounding=False):
-
+        print("Entering compute_shapley_values")
         if (dependency_dt is not None) and (dependency_dt['position'].max() + 1 != M):
             return ValueError("The tokenizer divided words into subwords and the dependency tree only consider full words")
-
-        m00 = np.zeros(M, dtype=bool)
+        print("M the number of important tokens", M)
         dt_exact = feature_exact(M)
+        print("dt_exact", dt_exact)
+        if (dependency_dt is not None):
+            print("dependency_dt", dependency_dt)
 
         count_updates = np.zeros(M, dtype=int)
 
         if algorithm=='r-dtree':
+            m00 = np.zeros(len(fm), dtype=bool)
             tree_levels = np.zeros(M, dtype=int)
             # Determine the size of the array
             max_pos = dependency_dt['position'].max()
@@ -290,6 +310,7 @@ class DependencyExplainer(Explainer):
                 tree_levels[row['position']] = row['level']
 
             levels = np.sort(np.unique(tree_levels))
+            print("levels", levels)
             for l in levels:
                 ind_at_level = np.where(tree_levels==l)[0]
                 for ind in ind_at_level:
@@ -309,9 +330,13 @@ class DependencyExplainer(Explainer):
                         self.dvalues[ind] += (f01 - f00l) * weight
                         count_updates[ind] += 1
                     else:
+                        print("m00", m00)
                         m01 = m00.copy()
                         m01[ind] = 1
+                        print("m01", m01)
                         f01 = fm(m01.reshape(1, -1))[0]
+                        print("f01", f01)
+                        print("f00", f00)
                         weight = dependency_dt[dependency_dt['position'] == ind]['level_weight'] if weighted else 1
                         self.dvalues[ind] += (f01 - f00) * weight
                         count_updates[ind] += 1
@@ -319,6 +344,7 @@ class DependencyExplainer(Explainer):
 
         else:
             if algorithm=='dtree':
+                print("algorithm is dtree")
                 causal_ordering = []
                 # Find unique levels
                 unique_levels = dependency_dt['level'].unique()
@@ -345,11 +371,13 @@ class DependencyExplainer(Explainer):
 
             for i in range(max_id_combination):
                 combination = dt['features'][i]
+                print("combination", combination)
                 m00 = convert_feat_to_mask(combination, M)
                 remaining_indices = list(set(range(M)) - set(combination))
                 for ind in remaining_indices:
                     m10 = m00.copy()
                     m10[ind] = 1
+                    print("m10 has only size of meaningful tokens - should raise an error")
                     f10 = fm(m10.reshape(1,-1))[0]
                     weight = dependency_dt[dependency_dt['position'] == ind]['level_weight'] if weighted else 1
                     self.dvalues[ind] += (f10-f00) * weight

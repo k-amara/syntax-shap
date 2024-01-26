@@ -9,6 +9,7 @@ import links
 from scipy.stats import entropy
 from utils import MaskedModel
 from maskers import Text
+import random
 
 # old_prediction = get_pred_token(text, new_tokens=1)
 UNABLE_TO_SWITCH = -1
@@ -71,9 +72,13 @@ def generate_explanatory_masks(str_inputs, shapley_scores, k, tokenizer, token_i
     for i, prompt in enumerate(str_inputs):
         # Extract the top k% words based on the shapley value
         # n_words = len(prompt.split())
+        print("No prefix and suffix in tokenizer.tokenize(prompt)")
         print("tokenizer.tokenize(prompt)", tokenizer.tokenize(prompt))
         n_token = len(tokenizer.tokenize(prompt))
         shapley_scores_i = shapley_scores[i][:, token_id]
+        print("n_token", n_token)
+        print("len shapley_scores_i", len(shapley_scores_i))
+        assert n_token == len(shapley_scores_i)
         split_point = int(k * n_token)
         important_indices = (-shapley_scores_i).argsort()[:split_point]
         print("n_token", n_token)
@@ -126,6 +131,7 @@ def run_model(row_args, mask, pipeline):
     if mask is None:
         mask = np.ones(len(fm), dtype=bool)
     mask = np.array(mask, dtype=bool)
+    print("Should raise an error here")
     pred = fm(mask.reshape(1, -1))[0]
     probs = fm.probs
     return pred, probs
@@ -133,24 +139,32 @@ def run_model(row_args, mask, pipeline):
 
 def replace_words_randomly(str_input, mask, tokenizer):
     indices_to_replace = np.where(mask == 0)[0]
-    token_ids = np.array(tokenizer.encode(str_input))
-    print("len token_ids", len(token_ids))
-    print("len mask", len(mask))
-    cond = False
-    while not cond:
-        random_ids = np.random.choice(a=tokenizer.vocab_size, size=len(indices_to_replace)).tolist()
-        token_ids[indices_to_replace] = random_ids
-        text = tokenizer.decode(token_ids)
-        new_token_ids = np.array(tokenizer.encode(text))
-        cond = len(new_token_ids) == len(token_ids)
-    print("new str_input", text)
-    print("new len token_ids", len(new_token_ids))
-    return text
+    token_words = np.array(tokenizer.tokenize(str_input))
+    print("token_words", token_words)
+    print("mask", mask)
+    assert len(token_words) == len(mask)
+    for id in indices_to_replace:
+         # Tokenize the sentence
+        tokens = tokenizer.tokenize(str_input)
+        # Ensure the token_id is within the range of tokens
+        if id < 0 or id >= len(tokens):
+            raise ValueError("id is out of range")
+        # Select a random token from the tokenizer's vocabulary
+        random_token = random.choice(list(tokenizer.vocab.keys()))
+        # Replace the specified token
+        tokens[id] = random_token
+    # Reassemble the sentence
+    new_str_input = tokenizer.convert_tokens_to_string(tokens)
+    print("new str_input", new_str_input)
+    new_token_words = np.array(tokenizer.tokenize(new_str_input))
+    assert len(new_token_words) == len(mask)
+    return new_str_input
 
 
 def get_scores(str_inputs, shapley_scores, pipeline, k, token_id=0):
 
     masks = generate_explanatory_masks(str_inputs, shapley_scores, k, pipeline.tokenizer, token_id)
+    # generated masks do not contain prefix and suffix positions!!
 
     preds_orig, probs_orig = [], []
     preds_keep, probs_keep = [], []

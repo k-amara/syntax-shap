@@ -110,6 +110,15 @@ class Text(Masker):
         mask = self._standardize_mask(mask, s)
         self._update_s_cache(s)
 
+        if mask.shape != (len(self._tokenized_s),):
+            print("WARNING: Text masker got a mask with shape " + str(mask.shape) + " but expected " + str((len(self._tokenized_s),)) + "!")
+            print("Mask shape will be cast to " + str((len(self._tokenized_s),)) + " with prefix and suffix to account for the expected shape by the tokenizer.")
+            if self.keep_prefix > 0:
+                mask = np.insert(mask, 0, True, axis=0)
+            if self.keep_suffix > 0:
+                mask = np.insert(mask, len(mask), True, axis=0)
+            assert mask.shape == (len(self._tokenized_s),)
+            
         # if we have a fixed prefix or suffix then we need to grow the mask to account for that
         if self.keep_prefix > 0 or self.keep_suffix > 0:
             mask = mask.copy()
@@ -117,6 +126,7 @@ class Text(Masker):
                 mask[:self.keep_prefix] = True
             if self.keep_suffix > 0:
                 mask[-self.keep_suffix:] = True
+            
 
         if self.output_type == "string":
             # if self.mask_token == "":

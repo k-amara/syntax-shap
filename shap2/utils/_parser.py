@@ -10,7 +10,7 @@ from transformers import set_seed
 
 CKPT_ROOT = "/cluster/home/kamara/syntax-shap/"
 STORAGE = "/cluster/work/zhang/kamara/syntax-shap/"
-DATA_DIR = STORAGE + "data/"
+DATA_DIR = CKPT_ROOT + "data/"
 MODEL_DIR = STORAGE + "models/"
 FIG_DIR = CKPT_ROOT + "figures/"
 RESULT_DIR = STORAGE + "results/"

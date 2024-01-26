@@ -13,6 +13,9 @@ import transformers
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from utils import arg_parse, fix_random_seed
 from utils._exceptions import InvalidAlgorithmError
+from datasets import generics_kb, inconsistent_negation, rocstories
+from utils._filter_data import filter_data
+from utils.transformers import parse_prefix_suffix_for_tokenizer
 
 #import shap
 
@@ -59,30 +62,20 @@ def main(args):
     tokenizer.padding_side = "left"
     
     lmmodel = models.TextGeneration(model, tokenizer, device=device)
-
+    parsed_tokenizer_dict = parse_prefix_suffix_for_tokenizer(lmmodel.tokenizer)
+    keep_prefix = parsed_tokenizer_dict['keep_prefix']
+    keep_suffix = parsed_tokenizer_dict['keep_suffix']
+    print("keep_prefix", keep_prefix)
+    print("keep_suffix", keep_suffix)
+   
     #### Prepare the data ####
     if args.dataset == "negation":
-        data_file = "Inconsistent-Dataset-Negation.tsv"
-    data_path = os.path.join(args.data_save_dir, data_file)
-    tsv_file = open(data_path)
-    read_tsv = list(csv.reader(tsv_file, delimiter="\t"))
-    data = []
-    for row in read_tsv:
-        data.append(row[1][:-8])
-    data = np.array(data)
-    print(f"Inconsistent-Dataset-Negation.tsv: {len(data)}")
-
-    #### Filter invalid data ####
-    # Tokenization might split words into multiple tokens, which is not supported by the current implementation
-    filter_ids_path = os.path.join(args.result_save_dir, "invalid_data/invalid_ids.npy")
-    if os.path.exists(filter_ids_path):
-        invalid_ids = np.load(filter_ids_path, allow_pickle=True)
-    else:
-        invalid_ids = []
-    filtered_data = np.delete(data, invalid_ids, axis=0)
-    # filtered_explanations = np.delete(explanations, invalid_ids, axis=0)
-    # assert len(filtered_data) == len(filtered_explanations)
-    print(f"Filtered Inconsistent-Dataset-Negation.tsv: {len(filtered_data)}")
+        data, _ = inconsistent_negation(args.data_save_dir)
+    elif args.dataset == "generics":
+        data, _ = generics_kb(args.data_save_dir)
+    elif args.dataset == "rocstories":
+        data, _ = rocstories(args.data_save_dir)
+    filtered_data = filter_data(args.dataset, data, lmmodel.tokenizer, args.data_save_dir, keep_prefix, keep_suffix)
 
 
     #### Check if the shap values exist ####
