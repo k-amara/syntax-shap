@@ -64,25 +64,14 @@ def compute_perturbation_curve(text, words_to_remove_all, old_prediction, pipeli
     return np.array(values).sum()/len(values)#(L + 1)
 
 def generate_explanatory_masks(str_inputs, shapley_scores, k, tokenizer, token_id):
-
-    print("str_inputs", str_inputs)
-    print("shapley_scores", shapley_scores)
-
     masks = []
     for i, prompt in enumerate(str_inputs):
         # Extract the top k% words based on the shapley value
-        # n_words = len(prompt.split())
-        print("No prefix and suffix in tokenizer.tokenize(prompt)")
-        print("tokenizer.tokenize(prompt)", tokenizer.tokenize(prompt))
         n_token = len(tokenizer.tokenize(prompt))
         shapley_scores_i = shapley_scores[i][:, token_id]
-        print("n_token", n_token)
-        print("len shapley_scores_i", len(shapley_scores_i))
         assert n_token == len(shapley_scores_i)
         split_point = int(k * n_token)
         important_indices = (-shapley_scores_i).argsort()[:split_point]
-        print("n_token", n_token)
-        print("len important_indices", len(important_indices))
         mask = np.zeros(n_token)
         mask[important_indices] = 1
         masks.append(mask)
@@ -131,37 +120,23 @@ def run_model(row_args, mask, pipeline):
     if mask is None:
         mask = np.ones(len(fm), dtype=bool)
     mask = np.array(mask, dtype=bool)
-    print("Should raise an error here")
     pred = fm(mask.reshape(1, -1))[0]
     probs = fm.probs
     return pred, probs
 
 
 def replace_words_randomly(str_input, mask, tokenizer):
-    indices_to_replace = np.where(mask == 0)[0]
-    token_words = np.array(tokenizer.tokenize(str_input))
-    print("token_words", token_words)
-    print("mask", mask)
-    assert len(token_words) == len(mask)
-    for id in indices_to_replace:
-         # Tokenize the sentence
-        tokens = tokenizer.tokenize(str_input)
-        # Ensure the token_id is within the range of tokens
-        if id < 0 or id >= len(tokens):
-            raise ValueError("id is out of range")
-        # Select a random token from the tokenizer's vocabulary
-        random_token = random.choice(list(tokenizer.vocab.keys()))
-        # Replace the specified token
-        tokens[id] = random_token
-    # Reassemble the sentence
-    new_str_input = tokenizer.convert_tokens_to_string(tokens)
-    print("new str_input", new_str_input)
-    new_token_words = np.array(tokenizer.tokenize(new_str_input))
-    assert len(new_token_words) == len(mask)
+    mask = np.array(mask)
+    token_ids_to_replace = np.where(mask == 0)[0].astype(int)
+    token_ids = np.array(tokenizer.encode(str_input, add_special_tokens=False))
+    assert len(token_ids) == len(mask)
+    new_ids = np.random.choice(list(tokenizer.vocab.values()), len(token_ids_to_replace))
+    token_ids[token_ids_to_replace] = new_ids
+    new_str_input = tokenizer.decode(token_ids, add_special_tokens=False)
     return new_str_input
 
 
-def get_scores(str_inputs, shapley_scores, pipeline, k, token_id=0):
+def get_scores(str_inputs, shapley_scores, pipeline, k, keep_prefix, token_id=0):
 
     masks = generate_explanatory_masks(str_inputs, shapley_scores, k, pipeline.tokenizer, token_id)
     # generated masks do not contain prefix and suffix positions!!
@@ -185,7 +160,7 @@ def get_scores(str_inputs, shapley_scores, pipeline, k, token_id=0):
         preds_rmv.append(rmv[0])
         probs_rmv.append(rmv[1])
 
-        new_str_input = replace_words_randomly(str_input, mask, pipeline.tokenizer)
+        new_str_input = replace_words_randomly(str_input, mask, pipeline.tokenizer, keep_prefix)
         keep_rd = run_model([new_str_input], mask, pipeline)
         preds_keep_rd.append(keep_rd[0])
         probs_keep_rd.append(keep_rd[1])

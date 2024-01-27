@@ -179,10 +179,16 @@ class PartitionExplainer(Explainer):
 
         lower_credit(len(self.dvalues) - 1, 0, M, self.values, self._clustering)
 
+        mask_shapes = []
+        for s in fm.mask_shapes:
+            s = list(s)
+            s[0] -= self.keep_prefix + self.keep_suffix
+            mask_shapes.append(tuple(s))
+
         return {
             "values": self.values[:M].copy(),
             "expected_values": self._curr_base_value if outputs is None else self._curr_base_value[outputs],
-            "mask_shapes": [s + out_shape[1:] for s in fm.mask_shapes],
+            "mask_shapes": [s + out_shape[1:] for s in mask_shapes],
             "main_effects": None,
             "hierarchical_values": self.dvalues.copy(),
             "clustering": self._clustering,
@@ -243,7 +249,6 @@ class PartitionExplainer(Explainer):
             while not q.empty() and len(batch_masks) < batch_size and eval_count + len(batch_masks) < max_evals:
 
                 # get our next set of arguments
-                print("q: ", q.queue)
                 ind, weight, f00, f11, m00 = q.get()[2]
 
                 # get the left and right children of this cluster

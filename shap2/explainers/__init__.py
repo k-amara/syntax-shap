@@ -1,6 +1,6 @@
 from ._additive import AdditiveExplainer
 from ._deep import DeepExplainer
-from ._dependency import DependencyExplainer
+from ._syntax import SyntaxExplainer
 from ._exact import ExactExplainer
 from ._gpu_tree import GPUTreeExplainer
 from ._gradient import GradientExplainer
@@ -23,7 +23,7 @@ Partition = PartitionExplainer
 Permutation = PermutationExplainer
 Sampling = SamplingExplainer
 Tree = TreeExplainer
-Dependency = DependencyExplainer
+Syntax = SyntaxExplainer
 
 __all__ = [
     "AdditiveExplainer",
@@ -37,5 +37,5 @@ __all__ = [
     "PermutationExplainer",
     "SamplingExplainer",
     "TreeExplainer",
-    "DependencyExplainer",
+    "SyntaxExplainer",
 ]

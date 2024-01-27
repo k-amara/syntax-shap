@@ -4,7 +4,7 @@ from ._explanation import Cohorts, Explanation
 from .explainers import other
 from .explainers._additive import AdditiveExplainer
 from .explainers._deep import DeepExplainer
-from .explainers._dependency import DependencyExplainer
+from .explainers._syntax import SyntaxExplainer
 from .explainers._exact import ExactExplainer
 from .explainers._explainer import Explainer
 from .explainers._gpu_tree import GPUTreeExplainer
@@ -112,7 +112,7 @@ __all__ = [
     "PermutationExplainer",
     "SamplingExplainer",
     "TreeExplainer",
-    "DependencyExplainer",
+    "SyntaxExplainer",
 
     # Plots
     "plots",

@@ -87,9 +87,10 @@ def inconsistent_negation(data_save_dir, with_labels=False, display=False):
     """
     path_to_data = os.path.join(data_save_dir, "negation")
     os.makedirs(path_to_data, exist_ok=True)
-    tsv_file = open(os.path.join(path_to_data, "Inconsistent-Dataset-Negation.tsv"))
-    if not os.path.exists(tsv_file):
+    file = os.path.join(path_to_data, "Inconsistent-Dataset-Negation.tsv")
+    if not os.path.isfile(file):
         raise ValueError("The dataset negation is not found")
+    tsv_file = open(file)
     read_tsv = list(csv.reader(tsv_file, delimiter="\t"))
     data, y = [], []
     for row in read_tsv:
@@ -102,9 +103,10 @@ def inconsistent_negation(data_save_dir, with_labels=False, display=False):
 def generics_kb(data_save_dir, with_labels=False, display=False):
     path_to_data = os.path.join(data_save_dir, "generics")
     os.makedirs(path_to_data, exist_ok=True)
-    csv_file = open(os.path.join(path_to_data, "generics_kb_5_tokens.csv"))
-    if not os.path.exists(csv_file):
+    file = os.path.join(path_to_data, "generics_kb_5_tokens.csv")
+    if not os.path.isfile(file):
         raise ValueError("The dataset generics is not found")
+    csv_file = open(file)
     read_csv = pd.read_csv(csv_file, delimiter=",")
     data = np.array(list(read_csv['sentence_without_last_token']))
     print(f"Loading Generics dataset: {data.shape[0]}")
@@ -118,11 +120,12 @@ def generics_kb(data_save_dir, with_labels=False, display=False):
 def rocstories(data_save_dir, with_labels=False, display=False):
     path_to_data = os.path.join(data_save_dir, "rocstories")
     os.makedirs(path_to_data, exist_ok=True)
-    csv_file = open(os.path.join(path_to_data, "rocstories_5_tokens.csv"))
-    if not os.path.exists(csv_file):
+    file = os.path.join(path_to_data, "rocstories_5_tokens.csv")
+    if not os.path.isfile(file):
         raise ValueError("The dataset rocstories is not found")
+    csv_file = open(file)
     read_csv = pd.read_csv(csv_file, delimiter=",")
-    data = list(read_csv['sentence_without_last_token'])
+    data = np.array(list(read_csv['sentence_without_last_token']))
     print(f"Loading Rocstories dataset: {data.shape[0]}")
     if with_labels:
         sentence = list(read_csv['sentence'])

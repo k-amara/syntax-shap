@@ -15,6 +15,7 @@ from models import Model
 from utils import safe_isinstance, show_progress
 from utils._exceptions import InvalidAlgorithmError
 from utils.transformers import is_transformers_lm
+from utils.transformers import parse_prefix_suffix_for_tokenizer
 
 
 class Explainer(Serializable):
@@ -79,6 +80,10 @@ class Explainer(Serializable):
         self.model = model
         self.output_names = output_names
         self.feature_names = feature_names
+
+        parsed_tokenizer_dict = parse_prefix_suffix_for_tokenizer(masker)
+        self.keep_prefix = parsed_tokenizer_dict['keep_prefix']
+        self.keep_suffix = parsed_tokenizer_dict['keep_suffix']
 
         # wrap the incoming masker object as a shap.Masker object
         if (

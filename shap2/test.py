@@ -65,8 +65,6 @@ def main(args):
     parsed_tokenizer_dict = parse_prefix_suffix_for_tokenizer(lmmodel.tokenizer)
     keep_prefix = parsed_tokenizer_dict['keep_prefix']
     keep_suffix = parsed_tokenizer_dict['keep_suffix']
-    print("keep_prefix", keep_prefix)
-    print("keep_suffix", keep_suffix)
    
     #### Prepare the data ####
     if args.dataset == "negation":
@@ -75,7 +73,7 @@ def main(args):
         data, _ = generics_kb(args.data_save_dir)
     elif args.dataset == "rocstories":
         data, _ = rocstories(args.data_save_dir)
-    filtered_data = filter_data(args.dataset, data, lmmodel.tokenizer, args.data_save_dir, keep_prefix, keep_suffix)
+    filtered_data = filter_data(data, lmmodel.tokenizer, args, keep_prefix, keep_suffix)
 
 
     #### Check if the shap values exist ####
@@ -84,23 +82,21 @@ def main(args):
     filename = f"shap_values_{args.dataset}_{args.model_name}_{args.algorithm}.pkl"
 
     #### Explain the model ####
-    if args.algorithm == "partition_init":
-        explainer = shap.explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
-    elif args.algorithm == "partition":
+    #### Explain the model ####
+    if args.algorithm == "partition":
         explainer = explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
     elif args.algorithm == "lime":
         explainer = LimeTextGeneration(lmmodel, filtered_data)
-    elif args.algorithm == "exact":
-        explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="exact", weighted=False)
-    elif args.algorithm == "dtree":
-        explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="dtree", weighted=False)
-    elif args.algorithm == "dtreew":
-        explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="dtree", weighted=True)
-    elif args.algorithm == "r-dtree":
-        explainer = explainers.DependencyExplainer(lmmodel, lmmodel.tokenizer, algorithm="r-dtree", weighted=False)
+    elif args.algorithm == "shap":
+        explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, algorithm="shap")
+    elif args.algorithm == "syntax":
+        explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, algorithm="syntax")
+    elif args.algorithm == "syntax-w":
+        explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, algorithm="syntax-w")
     else:
-        raise InvalidAlgorithmError("Unknown dependency tree algorithm type passed: %s!" % args.algorithm)
+        raise InvalidAlgorithmError("Unknown algorithm type passed: %s!" % args.algorithm)
     shap_values = explainer(filtered_data[:5])
+
 
     #### Save the shap values ####
     if args.algorithm == "lime":
@@ -109,9 +105,8 @@ def main(args):
         filtered_explanations = shap_values.values
 
     print("Done!")
-    
     #### Evaluate the explanations ####
-    scores = get_scores(filtered_data[:5], filtered_explanations, lmmodel, args.threshold)
+    scores = get_scores(filtered_data[:5], filtered_explanations, lmmodel, args.threshold, keep_prefix)
     print("scores", scores)
     save_scores(args, scores)
 

@@ -16,7 +16,6 @@ from utils import (
     safe_isinstance,
     spacy_doc_to_tree,
 )
-from utils.transformers import parse_prefix_suffix_for_tokenizer
 
 
 def convert_feat_to_mask(feature, m):
@@ -114,13 +113,13 @@ def feature_exact(M, asymmetric=False, causal_ordering=None):
 
     return dt
 
-class DependencyExplainer(Explainer):
+class SyntaxExplainer(Explainer):
 
-    def __init__(self, model, masker, algorithm='dtree', weighted=False, confounding=True, output_names=None, link=links.identity, linearize_link=True,
+    def __init__(self, model, masker, algorithm='syntax', confounding=True, output_names=None, link=links.identity, linearize_link=True,
                  feature_names=None, **call_args):
-        """ Uses the dependency SHAP method to explain the output of any function.
+        """ Uses the Syntax SHAP method to explain the output of any function.
 
-        Dependency SHAP
+        Syntax SHAP
 
 
         Parameters
@@ -138,13 +137,13 @@ class DependencyExplainer(Explainer):
             functions are available in shap such as shap.maksers.Image for images and shap.maskers.Text
             for text.
 
-        dependency: str
-            The type of Dependency SHAP to use. The options are  None, 'asymmetric', 'syntax'. The default is 'asymmetric'.
+        type: str
+            The type of algo to use. The options are 'shap', 'syntax', 'syntax_w'.
 
 
         Examples
         --------
-        See `Dependency explainer examples <https://shap.readthedocs.io/en/latest/api_examples/explainers/DependencyExplainer.html>`_
+        See `Syntax explainer examples <https://shap.readthedocs.io/en/latest/api_examples/explainers/SyntaxExplainer.html>`_
         """
 
         super().__init__(model, masker, link=link, linearize_link=linearize_link, \
@@ -168,16 +167,10 @@ class DependencyExplainer(Explainer):
         self.expected_value = None
         self._curr_base_value = None
 
-        # Define the type of Dependency SHAP
+        # Define the type of Syntax SHAP
         self.algorithm = algorithm
-        self.weighted = weighted
+        self.weighted = True if algorithm == 'syntax_w' else False
         self.confounding = confounding
-
-        parsed_tokenizer_dict = parse_prefix_suffix_for_tokenizer(masker)
-        self.keep_prefix = parsed_tokenizer_dict['keep_prefix']
-        self.keep_suffix = parsed_tokenizer_dict['keep_suffix']
-        print("keep_prefix", self.keep_prefix)
-        print("keep_suffix", self.keep_suffix)
 
         # handle higher dimensional tensor inputs
         if self.input_shape is not None and len(self.input_shape) > 1:
@@ -188,14 +181,14 @@ class DependencyExplainer(Explainer):
         # if we have gotten default arguments for the call function we need to wrap ourselves in a new class that
         # has a call function with those new default arguments
         if len(call_args) > 0:
-            class DependencyExplainer(self.__class__):
+            class SyntaxExplainer(self.__class__):
                 # this signature should match the __call__ signature of the class defined below
                 def __call__(self, *args, max_evals=500, outputs=None):
                     return super().__call__(
                         *args, max_evals=max_evals, outputs=outputs
                     )
-            DependencyExplainer.__call__.__doc__ = self.__class__.__call__.__doc__
-            self.__class__ = DependencyExplainer
+            SyntaxExplainer.__call__.__doc__ = self.__class__.__call__.__doc__
+            self.__class__ = SyntaxExplainer
             for k, v in call_args.items():
                 self.__call__.__kwdefaults__[k] = v
 
@@ -215,16 +208,9 @@ class DependencyExplainer(Explainer):
 
         # build a masked version of the model for the current input sample
         fm = MaskedModel(self.model, self.masker, self.link, self.linearize_link, *row_args)
-        print("self.algorithm", self.algorithm)
         # make sure we have the base value and current value outputs
-        print("row_args", row_args)
         mask_size_with_prefix_and_suffix = len(fm)
-        M = mask_size_with_prefix_and_suffix - self.keep_prefix - self.keep_suffix
-        print("row_args", row_args[0].split(' '))
-        print("len row args", len(row_args[0].split(' ')))
-        print("M", M)
-        assert M == len(row_args[0].split(' '))
-        print("m00 has prefix+suffix - should not raise error")
+        M = len(row_args[0].split(' '))
         m00 = np.zeros(mask_size_with_prefix_and_suffix, dtype=bool)
         # if not fixed background or no base value assigned then compute base value for a row
         if self._curr_base_value is None or not getattr(self.masker, "fixed_background", False):
@@ -251,19 +237,22 @@ class DependencyExplainer(Explainer):
         self.values = np.zeros(out_shape)
         self.dvalues = np.zeros(out_shape)
 
-        if 'dtree' in self.algorithm:
+        if 'syntax' in self.algorithm:
             # Build the dependency dataframe
-            print("algo dtree detected")
             dependency_dt = self.dependency_dt(*row_args)
-            print("dependency_dt", dependency_dt)
         else:
             dependency_dt = None
         self.compute_shapley_values(fm, self._curr_base_value, M, algorithm=self.algorithm, weighted=self.weighted, dependency_dt=dependency_dt, confounding=self.confounding)
-
+        
+        mask_shapes = []
+        for s in fm.mask_shapes:
+            s = list(s)
+            s[0] -= self.keep_prefix + self.keep_suffix
+            mask_shapes.append(tuple(s))
         return {
             "values": self.values[:M].copy(),
             "expected_values": self._curr_base_value if outputs is None else self._curr_base_value[outputs],
-            "mask_shapes": [s + out_shape[1:] for s in fm.mask_shapes],
+            "mask_shapes": [s + out_shape[1:] for s in mask_shapes],
             "main_effects": None,
             "output_indices": outputs,
             "output_names": getattr(self.model, "output_names", None)
@@ -283,22 +272,16 @@ class DependencyExplainer(Explainer):
         # Example usage with the Tree structure
         tree_df = create_dataframe_from_tree(tree_root)
         tree_df = tree_df[tree_df['token'] != 'MASK']
-        print("tree_df", tree_df)
         return tree_df
 
-    def compute_shapley_values(self, fm, f00, M, algorithm='dtree', dependency_dt=None, weighted=False, confounding=False):
-        print("Entering compute_shapley_values")
+    def compute_shapley_values(self, fm, f00, M, algorithm='syntax', dependency_dt=None, weighted=False, confounding=False):
         if (dependency_dt is not None) and (dependency_dt['position'].max() + 1 != M):
             return ValueError("The tokenizer divided words into subwords and the dependency tree only consider full words")
-        print("M the number of important tokens", M)
         dt_exact = feature_exact(M)
-        print("dt_exact", dt_exact)
-        if (dependency_dt is not None):
-            print("dependency_dt", dependency_dt)
 
         count_updates = np.zeros(M, dtype=int)
 
-        if algorithm=='r-dtree':
+        if algorithm=='r-syntax':
             m00 = np.zeros(len(fm), dtype=bool)
             tree_levels = np.zeros(M, dtype=int)
             # Determine the size of the array
@@ -310,7 +293,6 @@ class DependencyExplainer(Explainer):
                 tree_levels[row['position']] = row['level']
 
             levels = np.sort(np.unique(tree_levels))
-            print("levels", levels)
             for l in levels:
                 ind_at_level = np.where(tree_levels==l)[0]
                 for ind in ind_at_level:
@@ -330,21 +312,16 @@ class DependencyExplainer(Explainer):
                         self.dvalues[ind] += (f01 - f00l) * weight
                         count_updates[ind] += 1
                     else:
-                        print("m00", m00)
                         m01 = m00.copy()
                         m01[ind] = 1
-                        print("m01", m01)
                         f01 = fm(m01.reshape(1, -1))[0]
-                        print("f01", f01)
-                        print("f00", f00)
                         weight = dependency_dt[dependency_dt['position'] == ind]['level_weight'] if weighted else 1
                         self.dvalues[ind] += (f01 - f00) * weight
                         count_updates[ind] += 1
                 m00[ind_at_level]=1
 
         else:
-            if algorithm=='dtree':
-                print("algorithm is dtree")
+            if algorithm=='syntax':
                 causal_ordering = []
                 # Find unique levels
                 unique_levels = dependency_dt['level'].unique()
@@ -360,7 +337,7 @@ class DependencyExplainer(Explainer):
 
                 dt = feature_exact(M, asymmetric=True, causal_ordering=causal_ordering)
 
-            elif algorithm=='exact':
+            elif algorithm=='shap':
                 dt = dt_exact
 
             # Reducing the prediction DataFrame
@@ -371,13 +348,11 @@ class DependencyExplainer(Explainer):
 
             for i in range(max_id_combination):
                 combination = dt['features'][i]
-                print("combination", combination)
                 m00 = convert_feat_to_mask(combination, M)
                 remaining_indices = list(set(range(M)) - set(combination))
                 for ind in remaining_indices:
                     m10 = m00.copy()
                     m10[ind] = 1
-                    print("m10 has only size of meaningful tokens - should raise an error")
                     f10 = fm(m10.reshape(1,-1))[0]
                     weight = dependency_dt[dependency_dt['position'] == ind]['level_weight'] if weighted else 1
                     self.dvalues[ind] += (f10-f00) * weight

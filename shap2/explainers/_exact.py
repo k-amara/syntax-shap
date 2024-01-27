@@ -175,10 +175,15 @@ class ExactExplainer(Explainer):
                 for i in range(len(fm)):
                     row_values[i, i] = main_effect_values[i]
 
+        mask_shapes = []
+        for s in fm.mask_shapes:
+            s = list(s)
+            s[0] -= self.keep_prefix + self.keep_suffix
+            mask_shapes.append(tuple(s))
         return {
             "values": row_values,
             "expected_values": outputs[0],
-            "mask_shapes": fm.mask_shapes,
+            "mask_shapes": mask_shapes,
             "main_effects": main_effect_values if main_effects else None,
             "clustering": getattr(self.masker, "clustering", None)
         }
