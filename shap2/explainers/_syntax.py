@@ -169,7 +169,7 @@ class SyntaxExplainer(Explainer):
 
         # Define the type of Syntax SHAP
         self.algorithm = algorithm
-        self.weighted = True if algorithm == 'syntax_w' else False
+        self.weighted = True if algorithm == 'syntax-w' else False
         self.confounding = confounding
 
         # handle higher dimensional tensor inputs
@@ -321,13 +321,10 @@ class SyntaxExplainer(Explainer):
                 m00[ind_at_level]=1
 
         else:
-            if algorithm=='syntax':
+            if algorithm=='syntax' or algorithm=='syntax-w':
                 causal_ordering = []
                 # Find unique levels
                 unique_levels = dependency_dt['level'].unique()
-
-                # Print the number of unique levels
-                print(f"Number of unique levels: {len(unique_levels)}")
 
                 # Loop over unique levels
                 for level in unique_levels:

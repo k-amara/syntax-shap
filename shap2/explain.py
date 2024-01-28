@@ -110,10 +110,12 @@ def main(args):
             shap_values._save(os.path.join(save_dir, filename))
             filtered_explanations = shap_values.values
 
+        # print("filtered_explanations", filtered_explanations[:5])
+
     print("Done!")
     
     #### Evaluate the explanations ####
-    scores = get_scores(filtered_data, filtered_explanations, lmmodel, args.threshold, keep_prefix)
+    scores = get_scores(filtered_data, filtered_explanations, lmmodel, args.threshold)
     print("scores", scores)
     save_scores(args, scores)
 

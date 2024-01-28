@@ -1,19 +1,19 @@
 import csv
 import os
 from metrics import get_scores, save_scores
-
+import time
 import explainers
 from explainers.other import LimeTextGeneration
 import models
 import numpy as np
 import shap
+from datasets import generics_kb, inconsistent_negation, rocstories
 import torch
 import pickle
 import transformers
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from utils import arg_parse, fix_random_seed
 from utils._exceptions import InvalidAlgorithmError
-from datasets import generics_kb, inconsistent_negation, rocstories
 from utils._filter_data import filter_data
 from utils.transformers import parse_prefix_suffix_for_tokenizer
 
@@ -57,7 +57,7 @@ def main(args):
 
 
     # model.save_pretrained(f'/cluster/work/zhang/kamara/syntax-shap/models/{args.model_name}')
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_load, is_fast=False)
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_load)
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "left"
     
@@ -65,7 +65,7 @@ def main(args):
     parsed_tokenizer_dict = parse_prefix_suffix_for_tokenizer(lmmodel.tokenizer)
     keep_prefix = parsed_tokenizer_dict['keep_prefix']
     keep_suffix = parsed_tokenizer_dict['keep_suffix']
-   
+
     #### Prepare the data ####
     if args.dataset == "negation":
         data, _ = inconsistent_negation(args.data_save_dir)
@@ -73,7 +73,9 @@ def main(args):
         data, _ = generics_kb(args.data_save_dir)
     elif args.dataset == "rocstories":
         data, _ = rocstories(args.data_save_dir)
-    filtered_data = filter_data(data, lmmodel.tokenizer, args, keep_prefix, keep_suffix)
+    filtered_data_init = filter_data(data, lmmodel.tokenizer, args, keep_prefix, keep_suffix)
+    random_indices = np.random.choice(len(filtered_data_init), 300, replace=False)
+    filtered_data = filtered_data_init[random_indices]
 
 
     #### Check if the shap values exist ####
@@ -81,7 +83,6 @@ def main(args):
     os.makedirs(save_dir, exist_ok=True)
     filename = f"shap_values_{args.dataset}_{args.model_name}_{args.algorithm}.pkl"
 
-    #### Explain the model ####
     #### Explain the model ####
     if args.algorithm == "partition":
         explainer = explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
@@ -95,21 +96,13 @@ def main(args):
         explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, algorithm="syntax-w")
     else:
         raise InvalidAlgorithmError("Unknown algorithm type passed: %s!" % args.algorithm)
-    shap_values = explainer(filtered_data[300:315])
-
-
-    #### Save the shap values ####
-    if args.algorithm == "lime":
-        filtered_explanations = explainer._s
-    else: 
-        filtered_explanations = shap_values.values
+    t0 = time.time()
+    shap_values = explainer(filtered_data)
+    t1 = time.time()
+    print(f"Computation time for {len(filtered_data)} samples: {t1-t0}")
+    print(f"Average computation time per sample: {(t1-t0)/len(filtered_data)}")
 
     print("Done!")
-    #### Evaluate the explanations ####
-    scores = get_scores(filtered_data[300:315], filtered_explanations, lmmodel, args.threshold)
-    print("scores", scores)
-    # save_scores(args, scores)
-
 
 if __name__ == "__main__":
     parser, args = arg_parse()

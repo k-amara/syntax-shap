@@ -25,7 +25,7 @@ class LimeTextGeneration(Explainer):
         Control the mode of LIME tabular.
     """
 
-    def __init__(self, model, data, mode="classification"):
+    def __init__(self, model, data, batch_size = 100, mode="classification"):
         self.model = model
         if mode not in ["classification", "regression"]:
             emsg = f"Invalid mode {mode!r}, must be one of 'classification' or 'regression'"
@@ -42,7 +42,18 @@ class LimeTextGeneration(Explainer):
             data = data.values
         self.data = data
         self.explainer = LimeTextExplainer(class_names = self.vocab)
-        self.predictions = self.model(data).reshape(-1)
+        if len(data) > 300:
+            predictions = []
+            print("batch_size", batch_size)
+            for i in range(0, len(data), batch_size):
+                batch_data = data[i:i + batch_size]
+                batch_predictions = self.model(batch_data).reshape(-1)
+                predictions.append(batch_predictions)
+            self.predictions = np.concatenate(predictions)
+            print("predictions", self.predictions.shape)
+        else:
+            self.predictions = self.model(data).reshape(-1)
+        
 
         out = self.model(data[0:1])
         if len(out.shape) == 1:
@@ -75,7 +86,9 @@ class LimeTextGeneration(Explainer):
         attributions = []
         for i in range(X.shape[0]):
             exp = explainer.explain_instance(X[i], c.predict_proba, num_features = 20)
+            print("lime explanation", exp.as_list())
             words_order = X[i].split(" ")
+            print("words_order", words_order)
             exp_dict = dict(exp.as_list())
             sorted_dict = {k: exp_dict[k] for k in words_order if k in exp_dict}
             attributions.append(np.array(list(sorted_dict.values()))[:, np.newaxis])

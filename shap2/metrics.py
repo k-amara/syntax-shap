@@ -68,13 +68,17 @@ def generate_explanatory_masks(str_inputs, shapley_scores, k, tokenizer, token_i
     for i, prompt in enumerate(str_inputs):
         # Extract the top k% words based on the shapley value
         n_token = len(tokenizer.tokenize(prompt))
+        print(tokenizer.tokenize(prompt))
         shapley_scores_i = shapley_scores[i][:, token_id]
-        assert n_token == len(shapley_scores_i)
-        split_point = int(k * n_token)
-        important_indices = (-shapley_scores_i).argsort()[:split_point]
-        mask = np.zeros(n_token)
-        mask[important_indices] = 1
-        masks.append(mask)
+        if n_token != len(shapley_scores_i):
+            print("The scores and the number of tokens are NOT the same")
+            masks.append(None)
+        else:
+            split_point = int(k * n_token)
+            important_indices = (-shapley_scores_i).argsort()[:split_point]
+            mask = np.zeros(n_token)
+            mask[important_indices] = 1
+            masks.append(mask)
     return masks
 
 # A boy is not a
@@ -126,17 +130,19 @@ def run_model(row_args, mask, pipeline):
 
 
 def replace_words_randomly(str_input, mask, tokenizer):
-    mask = np.array(mask)
-    token_ids_to_replace = np.where(mask == 0)[0].astype(int)
-    token_ids = np.array(tokenizer.encode(str_input, add_special_tokens=False))
-    assert len(token_ids) == len(mask)
-    new_ids = np.random.choice(list(tokenizer.vocab.values()), len(token_ids_to_replace))
-    token_ids[token_ids_to_replace] = new_ids
-    new_str_input = tokenizer.decode(token_ids, add_special_tokens=False)
+    ids_to_replace = np.where(mask == 0)[0].astype(int)
+    words = str_input.split(" ")
+    assert len(words) == len(mask)
+    for i in ids_to_replace:
+        L = 0
+        while(L != len(words)):
+            words[i] = random.choice(list(tokenizer.vocab.keys()))
+            new_str_input = " ".join(words)
+            L = len(tokenizer.encode(new_str_input, add_special_tokens=False))
     return new_str_input
 
 
-def get_scores(str_inputs, shapley_scores, pipeline, k, keep_prefix, token_id=0):
+def get_scores(str_inputs, shapley_scores, pipeline, k, token_id=0):
 
     masks = generate_explanatory_masks(str_inputs, shapley_scores, k, pipeline.tokenizer, token_id)
     # generated masks do not contain prefix and suffix positions!!
@@ -145,25 +151,34 @@ def get_scores(str_inputs, shapley_scores, pipeline, k, keep_prefix, token_id=0)
     preds_keep, probs_keep = [], []
     preds_rmv, probs_rmv = [], []
     preds_keep_rd, probs_keep_rd = [], []
+    print("Number of explained instances", len(str_inputs))
+    N = len(str_inputs)
     for i, str_input in enumerate(str_inputs):
-        row_args = [str_input]
-        mask = np.array(masks[i])
-        orig = run_model(row_args, None, pipeline)
-        preds_orig.append(orig[0])
-        probs_orig.append(orig[1])
+        if masks[i] is None:
+            print("masks[i] is None")
+            N -= 1
+            continue
+        else:
+            row_args = [str_input]
+            mask = np.array(masks[i])
+            orig = run_model(row_args, None, pipeline)
+            preds_orig.append(orig[0])
+            probs_orig.append(orig[1])
 
-        keep = run_model(row_args, mask, pipeline)
-        preds_keep.append(keep[0])
-        probs_keep.append(keep[1])
+            keep = run_model(row_args, mask, pipeline)
+            preds_keep.append(keep[0])
+            probs_keep.append(keep[1])
 
-        rmv = run_model(row_args, 1-mask, pipeline)
-        preds_rmv.append(rmv[0])
-        probs_rmv.append(rmv[1])
+            rmv = run_model(row_args, 1-mask, pipeline)
+            preds_rmv.append(rmv[0])
+            probs_rmv.append(rmv[1])
 
-        new_str_input = replace_words_randomly(str_input, mask, pipeline.tokenizer, keep_prefix)
-        keep_rd = run_model([new_str_input], mask, pipeline)
-        preds_keep_rd.append(keep_rd[0])
-        probs_keep_rd.append(keep_rd[1])
+            new_str_input = replace_words_randomly(str_input, mask, pipeline.tokenizer)
+            keep_rd = run_model([new_str_input], mask, pipeline)
+            preds_keep_rd.append(keep_rd[0])
+            probs_keep_rd.append(keep_rd[1])
+
+    print("Number of explained instances", N)
 
     preds_orig, probs_orig = np.concatenate(preds_orig).astype(int), np.concatenate(probs_orig)
     preds_keep, probs_keep = np.concatenate(preds_keep).astype(int), np.concatenate(probs_keep)
