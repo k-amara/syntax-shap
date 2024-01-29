@@ -7,7 +7,7 @@ from explainers.other import LimeTextGeneration
 import models
 import numpy as np
 import shap
-from datasets import generics_kb, inconsistent_negation, rocstories
+from datasets import generics_kb, generics_kb_large, inconsistent_negation, rocstories
 import torch
 import pickle
 import transformers
@@ -71,24 +71,34 @@ def main(args):
     #### Prepare the data ####
     if args.dataset == "negation":
         data, _ = inconsistent_negation(args.data_save_dir)
-    elif args.dataset == "generics":
+    elif args.dataset == "generics-0":
         data, _ = generics_kb(args.data_save_dir)
+    elif args.dataset == "generics":
+        data, _ = generics_kb_large(args.data_save_dir)
     elif args.dataset == "rocstories":
         data, _ = rocstories(args.data_save_dir)
     filtered_data = filter_data(data, lmmodel.tokenizer, args, keep_prefix, keep_suffix)
+    if args.num_batch is not None:
+        assert args.num_batch * args.batch_size < len(filtered_data), "Batch number is too large!"
+        n_min = args.batch_size * args.num_batch
+        n_max = args.batch_size * (args.num_batch + 1) if args.num_batch < len(filtered_data) // args.batch_size else len(filtered_data)
+        print(f"Batch number {args.num_batch} of size {args.batch_size} is being used.")
+        filtered_data = filtered_data[n_min:n_max]
+    print("Length of filtered_data", len(filtered_data))
 
 
-    #### Check if the shap values exist ####
-    save_dir = os.path.join(args.result_save_dir, 'shap_values')
+    #### Check if the explanations exist ####
+    save_dir = os.path.join(args.result_save_dir, f'explanations/{args.model_name}/{args.dataset}/{args.algorithm}')
     os.makedirs(save_dir, exist_ok=True)
-    filename = f"shap_values_{args.dataset}_{args.model_name}_{args.algorithm}.pkl"
+    filename = "explanations_"
+    filename += f"batch_{args.num_batch}_"
+    filename += f"{args.dataset}_{args.model_name}_{args.algorithm}_{args.seed}.pkl"
     if os.path.exists(os.path.join(save_dir, filename)):
-        print("Loading shap values...")
+        print("Loading explanations...")
         filtered_explanations = pickle.load(open(os.path.join(save_dir, filename), "rb"))
         if args.algorithm != "lime":
             filtered_explanations = filtered_explanations.values
     else:
-
         #### Explain the model ####
         if args.algorithm == "partition":
             explainer = explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
@@ -103,20 +113,15 @@ def main(args):
         else:
             raise InvalidAlgorithmError("Unknown algorithm type passed: %s!" % args.algorithm)
         
-        if len(filtered_data) > args.batch_size:
-            explanations = []
-            for i in tqdm(range(0, len(filtered_data), args.batch_size), desc="Processing batches"):
-                batch_data = filtered_data[i:i + args.batch_size]
-                batch_predictions = explainer(batch_data)
-                batch_explanations = explainer._s if args.algorithm == 'lime' else batch_predictions.values
-                explanations.append(batch_explanations)
-            filtered_explanations = np.concatenate(explanations, axis=0)
-        else:
-            explanations = explainer(filtered_data)
-            filtered_explanations = explainer._s if args.algorithm == 'lime' else explanations.values
+        explanations = explainer(filtered_data)
 
-        with open(filename, 'wb') as outp:  # Overwrites any existing file.
-            pickle.dump(filtered_explanations, outp, pickle.HIGHEST_PROTOCOL)
+        #### Save the shap values ####
+        if args.algorithm == "lime":
+            explainer._save(os.path.join(save_dir, filename))
+            filtered_explanations = explainer._s
+        else: 
+            explanations._save(os.path.join(save_dir, filename))
+            filtered_explanations = explanations.values
 
     print("Done!")
     

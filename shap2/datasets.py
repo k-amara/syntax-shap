@@ -101,7 +101,7 @@ def inconsistent_negation(data_save_dir, with_labels=False, display=False):
     return data, y
 
 def generics_kb(data_save_dir, with_labels=False, display=False):
-    path_to_data = os.path.join(data_save_dir, "generics")
+    path_to_data = os.path.join(data_save_dir, "generics-0")
     os.makedirs(path_to_data, exist_ok=True)
     file = os.path.join(path_to_data, "generics_kb_5_tokens.csv")
     if not os.path.isfile(file):
@@ -110,6 +110,23 @@ def generics_kb(data_save_dir, with_labels=False, display=False):
     read_csv = pd.read_csv(csv_file, delimiter=",")
     data = np.array(list(read_csv['sentence_without_last_token']))
     print(f"Loading Generics dataset: {data.shape[0]}")
+    if with_labels:
+        sentence = list(read_csv['sentence'])
+        y = np.array([s.split(' ')[-1].split('.')[0] for s in list(sentence)])
+        return data, y
+    else:
+        return data, None
+    
+def generics_kb_large(data_save_dir, with_labels=False, display=False):
+    path_to_data = os.path.join(data_save_dir, "generics")
+    os.makedirs(path_to_data, exist_ok=True)
+    file = os.path.join(path_to_data, "generics_kb_large.csv")
+    if not os.path.isfile(file):
+        raise ValueError("The dataset generics large is not found")
+    csv_file = open(file)
+    read_csv = pd.read_csv(csv_file, delimiter=",")
+    data = np.array(list(read_csv['sentence_without_last_token']))
+    print(f"Loading Generics Large dataset: {data.shape[0]}")
     if with_labels:
         sentence = list(read_csv['sentence'])
         y = np.array([s.split(' ')[-1].split('.')[0] for s in list(sentence)])

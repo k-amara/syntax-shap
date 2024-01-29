@@ -174,7 +174,8 @@ def get_scores(str_inputs, shapley_scores, pipeline, k, token_id=0):
             probs_rmv.append(rmv[1])
 
             new_str_input = replace_words_randomly(str_input, mask, pipeline.tokenizer)
-            keep_rd = run_model([new_str_input], mask, pipeline)
+            print("new_str_input", new_str_input)
+            keep_rd = run_model([new_str_input], None, pipeline)
             preds_keep_rd.append(keep_rd[0])
             probs_keep_rd.append(keep_rd[1])
 
@@ -196,7 +197,7 @@ def get_scores(str_inputs, shapley_scores, pipeline, k, token_id=0):
     fid_keep_rd = top_1_probs_orig - top_1_probs_keep_rd
 
     # Calculate log-odds
-    log_odds_keep = np.log(top_1_probs_keep_rd + 1e-6) - np.log(top_1_probs_orig + 1e-6)
+    log_odds_keep = np.log(top_1_probs_keep + 1e-6) - np.log(top_1_probs_orig + 1e-6)
 
     acc_at_k = compute_acc_at_k(probs_keep, probs_orig, k=10)
     prob_diff_at_k = compute_prob_diff_at_k(probs_keep, probs_orig, k=10)
@@ -334,9 +335,11 @@ def get_scores(str_inputs, shapley_scores, pipeline, k, token_id=0):
 """
 
 def save_scores(args, scores):
-    save_dir = os.path.join(args.result_save_dir, f'scores/{args.model_name}/{args.dataset}/{args.algorithm}')
+    save_dir = os.path.join(args.result_save_dir, f'scores/{args.model_name}/{args.dataset}/{args.algorithm}/seed_{args.seed}/')
     os.makedirs(save_dir, exist_ok=True)
-    filename = f"scores_{args.dataset}_{args.model_name}_{args.algorithm}_{args.threshold}.pkl"
+    filename = "scores_"
+    filename += f"batch_{args.num_batch}_" if args.num_batch is not None else ""
+    filename += f"{args.dataset}_{args.model_name}_{args.algorithm}_{args.seed}_{args.threshold}.pkl"
     print(f"Saving scores to {os.path.join(save_dir, filename)}")
     with open(os.path.join(save_dir, filename), "wb") as f:
         pickle.dump(scores, f)
