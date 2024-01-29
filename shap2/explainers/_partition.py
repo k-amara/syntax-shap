@@ -198,6 +198,7 @@ class PartitionExplainer(Explainer):
 
     def __str__(self):
         return "explainers.PartitionExplainer()"
+    
 
     def owen(self, fm, f00, f11, max_evals, output_indexes, fixed_context, batch_size, silent):
         """ Compute a nested set of recursive Owen values based on an ordering recursion.

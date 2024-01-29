@@ -16,6 +16,8 @@ from utils import arg_parse, fix_random_seed
 from utils._exceptions import InvalidAlgorithmError
 from utils._filter_data import filter_data
 from utils.transformers import parse_prefix_suffix_for_tokenizer
+from tqdm import tqdm
+
 
 #import shap
 
@@ -100,17 +102,21 @@ def main(args):
             explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, algorithm="syntax-w")
         else:
             raise InvalidAlgorithmError("Unknown algorithm type passed: %s!" % args.algorithm)
-        shap_values = explainer(filtered_data)
+        
+        if len(filtered_data) > args.batch_size:
+            explanations = []
+            for i in tqdm(range(0, len(filtered_data), args.batch_size), desc="Processing batches"):
+                batch_data = filtered_data[i:i + args.batch_size]
+                batch_predictions = explainer(batch_data)
+                batch_explanations = explainer._s if args.algorithm == 'lime' else batch_predictions.values
+                explanations.append(batch_explanations)
+            filtered_explanations = np.concatenate(explanations, axis=0)
+        else:
+            explanations = explainer(filtered_data)
+            filtered_explanations = explainer._s if args.algorithm == 'lime' else explanations.values
 
-        #### Save the shap values ####
-        if args.algorithm == "lime":
-            explainer._save(os.path.join(save_dir, filename))
-            filtered_explanations = explainer._s
-        else: 
-            shap_values._save(os.path.join(save_dir, filename))
-            filtered_explanations = shap_values.values
-
-        # print("filtered_explanations", filtered_explanations[:5])
+        with open(filename, 'wb') as outp:  # Overwrites any existing file.
+            pickle.dump(filtered_explanations, outp, pickle.HIGHEST_PROTOCOL)
 
     print("Done!")
     

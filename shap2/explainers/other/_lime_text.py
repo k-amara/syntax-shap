@@ -42,17 +42,7 @@ class LimeTextGeneration(Explainer):
             data = data.values
         self.data = data
         self.explainer = LimeTextExplainer(class_names = self.vocab)
-        if len(data) > 300:
-            predictions = []
-            print("batch_size", batch_size)
-            for i in range(0, len(data), batch_size):
-                batch_data = data[i:i + batch_size]
-                batch_predictions = self.model(batch_data).reshape(-1)
-                predictions.append(batch_predictions)
-            self.predictions = np.concatenate(predictions)
-            print("predictions", self.predictions.shape)
-        else:
-            self.predictions = self.model(data).reshape(-1)
+        self.predictions = self.model(data).reshape(-1)
         
 
         out = self.model(data[0:1])

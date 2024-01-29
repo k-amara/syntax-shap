@@ -66,6 +66,10 @@ def arg_parse():
     )
 
     parser.add_argument(
+        "--batch_size", type=int, default=64
+    )
+
+    parser.add_argument(
         "--dataset",
         type=str,
         default="negation", # ["generics_kb_best_filtered"]
