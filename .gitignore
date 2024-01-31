@@ -38,7 +38,6 @@ node_modules
 /tests/*
 /clutils/*
 /models/*
-/notebooks/*
 <<<<<<< HEAD
 /config/*
 =======
