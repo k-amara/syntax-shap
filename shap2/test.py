@@ -17,7 +17,7 @@ from utils._exceptions import InvalidAlgorithmError
 from utils._filter_data import filter_data
 from utils.transformers import parse_prefix_suffix_for_tokenizer
 from tqdm import tqdm
-
+import dill
 
 #import shap
 
@@ -114,7 +114,15 @@ def main(args):
         if args.algorithm == "partition":
             explainer = explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
         elif args.algorithm == "lime":
-            explainer = LimeTextGeneration(lmmodel, filtered_data)
+            explainer_save_dir = os.path.join(args.result_save_dir, "explainer")
+            os.makedirs(explainer_save_dir, exist_ok=True)
+            if os.path.exists(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl")):
+                print("Loading LIME explainer...")
+                explainer = dill.load(open(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl"), "rb"))
+            else:
+                explainer = LimeTextGeneration(lmmodel, data)
+                with open(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl"), "wb") as file:
+                    dill.dump(explainer, file)
         elif args.algorithm == "shap":
             explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, algorithm="shap")
         elif args.algorithm == "syntax":

@@ -69,7 +69,10 @@ def generate_explanatory_masks(str_inputs, shapley_scores, k, tokenizer, token_i
         # Extract the top k% words based on the shapley value
         n_token = len(tokenizer.tokenize(prompt))
         print(tokenizer.tokenize(prompt))
+        print("prompt", prompt)
+        print("prompt words", prompt.split())
         shapley_scores_i = shapley_scores[i][:, token_id]
+        print("shapley_scores_i", shapley_scores_i)
         if n_token != len(shapley_scores_i):
             print("The scores and the number of tokens are NOT the same")
             masks.append(None)
