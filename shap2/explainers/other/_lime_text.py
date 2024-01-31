@@ -87,7 +87,7 @@ class LimeTextGeneration(Explainer):
         attributions = []
         for i in range(X.shape[0]):
             exp = explainer.explain_instance(X[i], c.predict_proba, num_features = 20)
-            words_order = X[i].split(" ")
+            words_order = X[i].split()
             exp_dict = dict(exp.as_list())
             sorted_dict = {k: exp_dict[k] for k in words_order if k in exp_dict}
             attributions.append(np.array(list(sorted_dict.values()))[:, np.newaxis])
