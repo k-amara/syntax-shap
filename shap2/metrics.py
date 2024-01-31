@@ -212,6 +212,84 @@ def get_scores(str_inputs, shapley_scores, pipeline, k, token_id=0):
     }
 
 
+def get_scores_valid(str_inputs, input_ids, shapley_scores, pipeline, k, token_id=0):
+
+    masks = generate_explanatory_masks(str_inputs, shapley_scores, k, pipeline.tokenizer, token_id)
+    # generated masks do not contain prefix and suffix positions!!
+
+    preds_orig, probs_orig = [], []
+    preds_keep, probs_keep = [], []
+    preds_rmv, probs_rmv = [], []
+    preds_keep_rd, probs_keep_rd = [], []
+    print("Number of explained instances", len(str_inputs))
+    N = len(str_inputs)
+    valid_ids = []
+    valid_inputs = []
+    for i, str_input in enumerate(str_inputs):
+        if masks[i] is None:
+            print("masks[i] is None")
+            N -= 1
+            continue
+        else:
+            row_args = [str_input]
+            mask = np.array(masks[i])
+            orig = run_model(row_args, None, pipeline)
+            preds_orig.append(orig[0])
+            probs_orig.append(orig[1])
+
+            keep = run_model(row_args, mask, pipeline)
+            preds_keep.append(keep[0])
+            probs_keep.append(keep[1])
+
+            rmv = run_model(row_args, 1-mask, pipeline)
+            preds_rmv.append(rmv[0])
+            probs_rmv.append(rmv[1])
+
+            new_str_input = replace_words_randomly(str_input, mask, pipeline.tokenizer)
+            print("new_str_input", new_str_input)
+            keep_rd = run_model([new_str_input], None, pipeline)
+            preds_keep_rd.append(keep_rd[0])
+            probs_keep_rd.append(keep_rd[1])
+            valid_ids.append(input_ids[i])
+            valid_inputs.append(str_input)
+
+    print("Number of explained instances", N)
+
+    preds_orig, probs_orig = np.concatenate(preds_orig).astype(int), np.concatenate(probs_orig)
+    preds_keep, probs_keep = np.concatenate(preds_keep).astype(int), np.concatenate(probs_keep)
+    preds_rmv, probs_rmv = np.concatenate(preds_rmv).astype(int), np.concatenate(probs_rmv)
+    preds_keep_rd, probs_keep_rd = np.concatenate(preds_keep_rd).astype(int), np.concatenate(probs_keep_rd)
+
+
+    top_1_probs_orig = torch.Tensor([probs_orig[enum, item] for enum, item in enumerate(preds_orig)]).detach().cpu().numpy()
+    top_1_probs_keep = torch.Tensor([probs_keep[enum, item] for enum, item in enumerate(preds_orig)]).detach().cpu().numpy()
+    top_1_probs_rmv = torch.Tensor([probs_rmv[enum, item] for enum, item in enumerate(preds_orig)]).detach().cpu().numpy()
+    top_1_probs_keep_rd = torch.Tensor([probs_keep_rd[enum, item] for enum, item in enumerate(preds_orig)]).detach().cpu().numpy()
+
+    fid_keep = top_1_probs_orig - top_1_probs_keep
+    fid_rmv = top_1_probs_orig - top_1_probs_rmv
+    fid_keep_rd = top_1_probs_orig - top_1_probs_keep_rd
+
+    # Calculate log-odds
+    log_odds_keep = np.log(top_1_probs_keep + 1e-6) - np.log(top_1_probs_orig + 1e-6)
+
+    acc_at_k = compute_acc_at_k(probs_keep, probs_orig, k=10)
+    prob_diff_at_k = compute_prob_diff_at_k(probs_keep, probs_orig, k=10)
+
+    return {
+        "fid_keep_rd": fid_keep_rd,
+        "fid_keep": fid_keep,
+        "fid_rmv": fid_rmv,
+        "log_odds_keep": log_odds_keep,
+        "acc_at_k": acc_at_k,
+        "prob_diff_at_k": prob_diff_at_k,
+        "input_id": valid_ids,
+        "input": valid_inputs,
+    }
+
+
+
+
 """
     # inputs are token ids (input_ids) and attention masks (attention_mask)
     inputs = pipeline.get_inputs(str_inputs, padding_side='left')

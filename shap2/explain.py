@@ -84,6 +84,8 @@ def main(args):
         n_max = args.batch_size * (args.num_batch + 1) if args.num_batch < len(filtered_data) // args.batch_size else len(filtered_data)
         print(f"Batch number {args.num_batch} of size {args.batch_size} is being used.")
         filtered_data = filtered_data[n_min:n_max]
+    else:
+        print(f"Batch number is not specified. Using all {len(filtered_data)} examples.")
     print("Length of filtered_data", len(filtered_data))
 
 
@@ -91,7 +93,7 @@ def main(args):
     save_dir = os.path.join(args.result_save_dir, f'explanations/{args.model_name}/{args.dataset}/{args.algorithm}')
     os.makedirs(save_dir, exist_ok=True)
     filename = "explanations_"
-    filename += f"batch_{args.num_batch}_"
+    filename += f"batch_{args.num_batch}_" if args.num_batch is not None else ""
     filename += f"{args.dataset}_{args.model_name}_{args.algorithm}_{args.seed}.pkl"
     if os.path.exists(os.path.join(save_dir, filename)):
         print("Loading explanations...")

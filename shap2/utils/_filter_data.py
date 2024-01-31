@@ -54,5 +54,6 @@ def filter_data(data, tokenizer, args, keep_prefix=0, keep_suffix=0):
         np.save(filename, invalid_ids)
         np.save(filename_inputs, invalid_inputs)
     filtered_data = np.delete(data, invalid_ids, axis=0)
+    filtered_ids = np.delete(np.arange(len(data)), invalid_ids, axis=0)
     print(f"Filtered {args.dataset}: {len(filtered_data)}")
-    return filtered_data
+    return filtered_data, filtered_ids
