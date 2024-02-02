@@ -91,12 +91,8 @@ class LimeTextGeneration(Explainer):
             print("X[i]", X[i])
             print("words_order", words_order)
             exp_dict = dict(exp.as_list())
-            print("exp_dict", exp_dict)
-            print("len(words_order)", len(words_order))
-            print("len(exp_dict)", len(exp_dict))
-            sorted_dict = {k: exp_dict[k] for k in words_order if k in exp_dict}
-            print("sorted_dict", sorted_dict)
-            attributions.append(np.array(list(sorted_dict.values()))[:, np.newaxis])
+            explanation = [exp_dict[k] for k in words_order if k in exp_dict]
+            attributions.append(np.array(explanation)[:, np.newaxis])
         self._s = attributions
         return self._s
     
