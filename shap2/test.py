@@ -1,6 +1,6 @@
 import csv
 import os
-from metrics import get_scores, get_scores_valid, save_scores
+from metrics import get_scores_valid, save_scores
 
 import explainers
 from explainers.other import LimeTextGeneration
@@ -98,7 +98,7 @@ def main(args):
 
 
     #### Check if the explanations exist ####
-    save_dir = os.path.join(args.result_save_dir, f'explanations/{args.model_name}/{args.dataset}/{args.algorithm}')
+    save_dir = os.path.join(args.result_save_dir, f'explanations/{args.model_name}/{args.dataset}/{args.algorithm}/seed_{args.seed}')
     os.makedirs(save_dir, exist_ok=True)
     filename = "explanations_"
     filename += f"batch_{args.num_batch}_" if args.num_batch is not None else ""
@@ -114,7 +114,7 @@ def main(args):
         if args.algorithm == "partition":
             explainer = explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
         elif args.algorithm == "lime":
-            explainer_save_dir = os.path.join(args.result_save_dir, "explainer")
+            explainer_save_dir = os.path.join(args.result_save_dir, f"explainer/seed_{args.seed}")
             os.makedirs(explainer_save_dir, exist_ok=True)
             if os.path.exists(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl")):
                 print("Loading LIME explainer...")

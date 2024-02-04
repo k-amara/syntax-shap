@@ -71,7 +71,7 @@ def main(args):
     df_pred['y'] = df_pred['input'].apply(lambda x: lmmodel.tokenizer.decode(lmmodel(x)[0]))
     print(df_pred.head(10))
 
-    df_pred.to_csv(f'{args.data_save_dir}/{args.dataset}/{args.dataset}_{args.model_name}_{args.seed}_predictions.csv', index=False)
+    df_pred.to_csv(f'{args.data_save_dir}/{args.dataset}/seed_{args.seed}/{args.dataset}_{args.model_name}_{args.seed}_predictions.csv', index=False)
     print("Done!")
     
 
