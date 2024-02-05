@@ -79,7 +79,10 @@ def main(args):
         data, _ = rocstories(args.data_save_dir)
     filtered_data, filtered_ids = filter_data(data, lmmodel.tokenizer, args, keep_prefix, keep_suffix)
     # Get permutation indices
-    permutation_indices = np.random.permutation(len(filtered_data))
+    if eval(args.shuffle):
+        permutation_indices = np.random.permutation(len(filtered_data))
+    else:
+        permutation_indices = np.arange(len(filtered_data))
 
     # Shuffle both arrays using the same permutation indices
     filtered_data = filtered_data[permutation_indices]

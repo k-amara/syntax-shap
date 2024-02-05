@@ -70,6 +70,10 @@ def arg_parse():
     )
 
     parser.add_argument(
+        "--shuffle", type=str, default='True'
+    )
+
+    parser.add_argument(
         "--num_batch", type=int, default=None
     )
 
