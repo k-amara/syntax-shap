@@ -13,7 +13,7 @@ STORAGE = "/cluster/work/zhang/kamara/syntax-shap/"
 DATA_DIR = CKPT_ROOT + "data/"
 MODEL_DIR = STORAGE + "models/"
 FIG_DIR = CKPT_ROOT + "figures/"
-RESULT_DIR = STORAGE + "results/"
+RESULT_DIR = STORAGE + "results_ids/"
 
 
 

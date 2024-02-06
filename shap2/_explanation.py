@@ -110,7 +110,9 @@ class Explanation(metaclass=MetaExplanation):
 
         self.output_dims = compute_output_dims(values, base_values, data, output_names)
         values_shape = _compute_shape(values)
-
+        print("values_shape", values_shape)
+        print("values", values)
+        print("self.output_dims", self.output_dims)
         if output_names is None and len(self.output_dims) == 1:
             output_names = [f"Output {i}" for i in range(values_shape[self.output_dims[0]])]
 
@@ -761,7 +763,6 @@ def compute_output_dims(values, base_values, data, output_names):
     """ Uses the passed data to infer which dimensions correspond to the model's output.
     """
     values_shape = _compute_shape(values)
-
     # input shape matches the data shape
     if data is not None:
         data_shape = _compute_shape(data)
@@ -783,7 +784,6 @@ def compute_output_dims(values, base_values, data, output_names):
         output_shape = _compute_shape(base_values)[1:]
     else:
         output_shape = tuple()
-
     interaction_order = len(values_shape) - len(data_shape) - len(output_shape)
     output_dims = range(len(data_shape) + interaction_order, len(values_shape))
     return tuple(output_dims)
