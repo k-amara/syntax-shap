@@ -51,5 +51,5 @@ for seed in seeds:
                 "n_filtered": len(filtered_data),
                 "n_tokens_list": size,
             }
-            with open(os.path.join(filter_ids_path, f"{dataset}_{model_name}_{seed}_stats.pkl"), "wb") as f:
-                pickle.dump(stats, f)
+            #with open(os.path.join(filter_ids_path, f"{dataset}_{model_name}_{seed}_stats.pkl"), "wb") as f:
+                #pickle.dump(stats, f)

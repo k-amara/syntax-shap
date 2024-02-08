@@ -5,7 +5,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
-import shap2
+import syntaxshap
 
 
 def is_empty(path):
@@ -45,7 +45,7 @@ def add_sample_images(path):
     """
     Function to add sample images from imagenet50 SHAP data in the given folder.
     """
-    X, _ = shap2.datasets.imagenet50()
+    X, _ = syntaxshap.datasets.imagenet50()
     counter = 1
     indexes_list = [25, 26, 30, 44]
     for i, image in enumerate(X):

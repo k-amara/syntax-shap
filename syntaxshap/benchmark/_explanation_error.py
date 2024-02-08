@@ -3,10 +3,10 @@ import time
 import numpy as np
 from tqdm.auto import tqdm
 
-from shap2 import Explanation, links
-from shap2.maskers import FixedComposite, Image, Text
-from shap2.utils import MaskedModel, partition_tree_shuffle
-from shap2.utils._exceptions import DimensionError
+from syntaxshap import Explanation, links
+from syntaxshap.maskers import FixedComposite, Image, Text
+from syntaxshap.utils import MaskedModel, partition_tree_shuffle
+from syntaxshap.utils._exceptions import DimensionError
 
 from ._result import BenchmarkResult
 

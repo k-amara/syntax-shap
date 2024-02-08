@@ -6,9 +6,9 @@ import pandas as pd
 import sklearn
 from tqdm.auto import tqdm
 
-from shap2 import Explanation, links
-from shap2.maskers import FixedComposite, Image, Text
-from shap2.utils import MaskedModel
+from syntaxshap import Explanation, links
+from syntaxshap.maskers import FixedComposite, Image, Text
+from syntaxshap.utils import MaskedModel
 
 from ._result import BenchmarkResult
 

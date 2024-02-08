@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import sklearn.datasets
 
-import shap2
+import syntaxshap
 
 # dataset = load_dataset("generics_kb", "generics_kb")
 
@@ -30,8 +30,8 @@ def imagenet50(display=False, resolution=224, n_points=None):
     y = np.loadtxt(cache(f"{prefix}labels.csv"))
 
     if n_points is not None:
-        X = shap2.utils.sample(X, n_points, random_state=0)
-        y = shap2.utils.sample(y, n_points, random_state=0)
+        X = syntaxshap.utils.sample(X, n_points, random_state=0)
+        y = syntaxshap.utils.sample(y, n_points, random_state=0)
 
     return X, y
 
@@ -44,8 +44,8 @@ def california(display=False, n_points=None):
     target = d.target
 
     if n_points is not None:
-        df = shap2.utils.sample(df, n_points, random_state=0)
-        target = shap2.utils.sample(target, n_points, random_state=0)
+        df = syntaxshap.utils.sample(df, n_points, random_state=0)
+        target = syntaxshap.utils.sample(target, n_points, random_state=0)
 
     return df, target
 
@@ -58,8 +58,8 @@ def linnerud(display=False, n_points=None):
     y = pd.DataFrame(d.target, columns=d.target_names)
 
     if n_points is not None:
-        X = shap2.utils.sample(X, n_points, random_state=0)
-        y = shap2.utils.sample(y, n_points, random_state=0)
+        X = syntaxshap.utils.sample(X, n_points, random_state=0)
+        y = syntaxshap.utils.sample(y, n_points, random_state=0)
 
     return X, y
 
@@ -77,8 +77,8 @@ def imdb(display=False, n_points=None):
     y[:12500] = 0
 
     if n_points is not None:
-        data = shap2.utils.sample(data, n_points, random_state=0)
-        y = shap2.utils.sample(y, n_points, random_state=0)
+        data = syntaxshap.utils.sample(data, n_points, random_state=0)
+        y = syntaxshap.utils.sample(y, n_points, random_state=0)
 
     return data, y
 
@@ -167,7 +167,7 @@ def communitiesandcrime(display=False, n_points=None):
     valid_inds = np.where(np.invert(np.isnan(raw_data.iloc[:,-2])))[0]
 
     if n_points is not None:
-        valid_inds = shap2.utils.sample(valid_inds, n_points, random_state=0)
+        valid_inds = syntaxshap.utils.sample(valid_inds, n_points, random_state=0)
 
     y = np.array(raw_data.iloc[valid_inds,-2], dtype=float)
 
@@ -187,8 +187,8 @@ def diabetes(display=False, n_points=None):
     target = d.target
 
     if n_points is not None:
-        df = shap2.utils.sample(df, n_points, random_state=0)
-        target = shap2.utils.sample(target, n_points, random_state=0)
+        df = syntaxshap.utils.sample(df, n_points, random_state=0)
+        target = syntaxshap.utils.sample(target, n_points, random_state=0)
 
     return df, target
 
@@ -201,8 +201,8 @@ def iris(display=False, n_points=None):
     target = d.target
 
     if n_points is not None:
-        df = shap2.utils.sample(df, n_points, random_state=0)
-        target = shap2.utils.sample(target, n_points, random_state=0)
+        df = syntaxshap.utils.sample(df, n_points, random_state=0)
+        target = syntaxshap.utils.sample(target, n_points, random_state=0)
 
     if display:
         return df, [d.target_names[v] for v in target]
@@ -226,7 +226,7 @@ def adult(display=False, n_points=None):
     )
 
     if n_points is not None:
-        raw_data = shap2.utils.sample(raw_data, n_points, random_state=0)
+        raw_data = syntaxshap.utils.sample(raw_data, n_points, random_state=0)
 
     data = raw_data.drop(["Education"], axis=1)  # redundant with Education-Num
     filt_dtypes = list(filter(lambda x: x[0] not in ["Target", "Education"], dtypes))
@@ -258,8 +258,8 @@ def nhanesi(display=False, n_points=None):
     y = pd.read_csv(cache(github_data_url + "NHANESI_y.csv"), index_col=0)["y"]
 
     if n_points is not None:
-        X = shap2.utils.sample(X, n_points, random_state=0)
-        y = shap2.utils.sample(y, n_points, random_state=0)
+        X = syntaxshap.utils.sample(X, n_points, random_state=0)
+        y = syntaxshap.utils.sample(y, n_points, random_state=0)
 
     if display:
         X_display = X.copy()
@@ -347,8 +347,8 @@ def a1a(n_points=None):
     data, target = sklearn.datasets.load_svmlight_file(cache(github_data_url + 'a1a.svmlight'))
 
     if n_points is not None:
-        data = shap2.utils.sample(data, n_points, random_state=0)
-        target = shap2.utils.sample(target, n_points, random_state=0)
+        data = syntaxshap.utils.sample(data, n_points, random_state=0)
+        target = syntaxshap.utils.sample(target, n_points, random_state=0)
 
     return data, target
 
