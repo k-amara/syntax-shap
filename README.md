@@ -1,5 +1,5 @@
 <p align="center">
-  ![SyntaxShap](fig1.png)
+  ![SyntaxShap](./fig1.png)
 </p>
 
 
