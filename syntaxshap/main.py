@@ -1,4 +1,3 @@
-import csv
 import os
 from metrics import get_scores_valid, save_scores
 
@@ -6,17 +5,15 @@ import explainers
 from explainers.other import LimeTextGeneration, Random
 import models
 import numpy as np
-import shap
-from datasets import generics_kb, generics_kb_large, inconsistent_negation, rocstories
+from datasets import generics_kb_large, inconsistent_negation, rocstories
 import torch
 import pickle
 import transformers
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
+from transformers import AutoTokenizer, AutoModelForCausalLM
 from utils import arg_parse, fix_random_seed
 from utils._exceptions import InvalidAlgorithmError
 from utils._filter_data import filter_data
 from utils.transformers import parse_prefix_suffix_for_tokenizer
-from tqdm import tqdm
 import dill
 
 #import shap
@@ -71,8 +68,6 @@ def main(args):
     #### Prepare the data ####
     if args.dataset == "negation":
         data, _ = inconsistent_negation(args.data_save_dir)
-    elif args.dataset == "generics-0":
-        data, _ = generics_kb(args.data_save_dir)
     elif args.dataset == "generics":
         data, _ = generics_kb_large(args.data_save_dir)
     elif args.dataset == "rocstories":
@@ -156,7 +151,7 @@ def main(args):
     #### Evaluate the explanations ####
     scores = get_scores_valid(filtered_data, filtered_ids, filtered_explanations, lmmodel, args.threshold)
     print("scores", scores)
-    save_scores(args, scores)
+    #save_scores(args, scores)
 
 
 if __name__ == "__main__":
