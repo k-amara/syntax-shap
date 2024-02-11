@@ -1,5 +1,5 @@
 <p align="center">
-  ![SyntaxShap](./fig1.png)
+  <img src = "fig1.svg" alt="SyntaxShap procedure"/>
 </p>
 
 
