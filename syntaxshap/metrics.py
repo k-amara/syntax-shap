@@ -1,55 +1,111 @@
 import numpy as np
 import torch
-import torch.nn.functional as F
+import random
 import os
 import pickle
-from utils import arg_parse, fix_random_seed
-from tokenizers import Encoding
+from typing import List, Optional, Tuple, Union
+
 import links
-from scipy.stats import entropy
 from utils import MaskedModel
 from maskers import Text
-import random
 
-# old_prediction = get_pred_token(text, new_tokens=1)
+# Constants
 UNABLE_TO_SWITCH = -1
 
-###### Word deletion / switch point
-def get_switch_point_word_deletion(text, words_to_remove_all, old_prediction, pipeline, tokenize):
-    """ How many words need to be removed before it is changed? """
+# Switch Point Word Deletion
+def get_switch_point_word_deletion(
+    text: str, 
+    words_to_remove_all: List[str], 
+    old_prediction: int, 
+    pipeline, 
+    tokenize
+) -> int:
+    """
+    Determine how many words need to be removed before the prediction changes.
+
+    Args:
+        text (str): Input text.
+        words_to_remove_all (List[str]): List of words to remove.
+        old_prediction (int): The original prediction.
+        pipeline: Model pipeline.
+        tokenize: Tokenization function.
+
+    Returns:
+        int: Number of words to remove before the prediction changes.
+    """
     words_to_remove = []
     for i, word in enumerate(words_to_remove_all):
         words_to_remove.append(word)
         if has_prediction_changed(text, words_to_remove, old_prediction, pipeline, tokenize):
-            return (i+1)
-
+            return (i + 1)
     return UNABLE_TO_SWITCH
 
+def has_prediction_changed(
+    text: str, 
+    words_to_remove: List[str], 
+    old_prediction: int, 
+    pipeline, 
+    tokenize
+) -> bool:
+    """
+    Check if the prediction changes after removing words.
 
-def has_prediction_changed(text, words_to_remove, old_prediction, pipeline, tokenize):
-    """ Return True if the prediction has changed after removing the words """
+    Args:
+        text (str): Input text.
+        words_to_remove (List[str]): List of words to remove.
+        old_prediction (int): The original prediction.
+        pipeline: Model pipeline.
+        tokenize: Tokenization function.
+
+    Returns:
+        bool: True if the prediction changes, False otherwise.
+    """
     new_text = remove_word(text, words_to_remove, tokenize)
     return old_prediction != pipeline.get_pred_tokens(new_text)
 
+def remove_word(
+    text: str, 
+    words: List[str], 
+    tokenize=None
+) -> str:
+    """
+    Remove words from text.
 
-def remove_word(text, words, tokenize=None):
-    """ Remove words from text using the tokenizer provided by the vectorizer"""
-    # First, tokenize
-    tokens = []
-    #if not tokenize:
-    tokens = text.split(' ')#re.split(r'(%s)|$' % r'\W+', text) # this comes from LIME code
-    #else:
-        #tokens = tokenize(text)
-    tokens_new = []
-    for token in tokens:
-        if token not in words and len(token.strip()) > 0:
-            tokens_new.append(token.strip())
+    Args:
+        text (str): Input text.
+        words (List[str]): List of words to remove.
+        tokenize: Tokenization function.
+
+    Returns:
+        str: Text with words removed.
+    """
+    tokens = text.split(' ')
+    tokens_new = [token.strip() for token in tokens if token not in words and len(token.strip()) > 0]
     return " ".join(tokens_new)
 
+# Perturbation Curve
+def compute_perturbation_curve(
+    text: str, 
+    words_to_remove_all: List[str], 
+    old_prediction: int, 
+    pipeline, 
+    tokenize, 
+    L: int = 10
+) -> float:
+    """
+    Compute the Average Output Change (AOPC) for a given number of word deletions.
 
-def compute_perturbation_curve(text, words_to_remove_all, old_prediction, pipeline, tokenize, L=10):
-    """ Compute AOPC https://arxiv.org/pdf/1509.06321.pdf"""
-    # Maximum 10 perturbations
+    Args:
+        text (str): Input text.
+        words_to_remove_all (List[str]): List of words to remove.
+        old_prediction (int): The original prediction.
+        pipeline: Model pipeline.
+        tokenize: Tokenization function.
+        L (int, optional): Maximum number of perturbations.
+
+    Returns:
+        float: AOPC value.
+    """
     values = []
     words_to_remove = []
     prob_orig = pipeline.get_probabilities_next_word([text])[old_prediction]
@@ -61,20 +117,34 @@ def compute_perturbation_curve(text, words_to_remove_all, old_prediction, pipeli
         new_text = remove_word(text, words_to_remove, tokenize=tokenize)
         prob = pipeline.get_probabilities_next_word([new_text])[old_prediction]
         values.append((prob_orig - prob).item())
-    return np.array(values).sum()/len(values)#(L + 1)
+    return np.array(values).sum() / len(values)
 
-def generate_explanatory_masks(str_inputs, shapley_scores, k, tokenizer, token_id):
+# Explanatory Masks Generation
+def generate_explanatory_masks(
+    str_inputs: List[str], 
+    shapley_scores, 
+    k: float, 
+    tokenizer, 
+    token_id: int
+) -> List[Optional[np.ndarray]]:
+    """
+    Generate explanatory masks based on SHAP values.
+
+    Args:
+        str_inputs (List[str]): List of input strings.
+        shapley_scores: SHAP values.
+        k (float): Percentage of important indices.
+        tokenizer: Tokenizer object.
+        token_id (int): Token ID.
+
+    Returns:
+        List: Explanatory masks.
+    """
     masks = []
     for i, prompt in enumerate(str_inputs):
-        # Extract the top k% words based on the shapley value
         n_token = len(tokenizer.tokenize(prompt))
-        print(tokenizer.tokenize(prompt))
-        print("prompt", prompt)
-        print("prompt words", prompt.split())
         shapley_scores_i = shapley_scores[i][:, token_id]
-        print("shapley_scores_i", shapley_scores_i)
         if n_token != len(shapley_scores_i):
-            print("The scores and the number of tokens are NOT the same")
             masks.append(None)
         else:
             split_point = int(k * n_token)
@@ -84,44 +154,103 @@ def generate_explanatory_masks(str_inputs, shapley_scores, k, tokenizer, token_i
             masks.append(mask)
     return masks
 
-# A boy is not a
-# 0 1 1 0 0 
-# 1 0 0 1 1
-# 1 PAD PAD 1 1
+# Padding Left Mask
+def padleft_mask(
+    masks: List[Optional[np.ndarray]], 
+    max_length: int
+) -> torch.Tensor:
+    """
+    Pad masks on the left to match max length.
 
+    Args:
+        masks (List[Optional[np.ndarray]]): List of masks.
+        max_length (int): Maximum length.
 
-def padleft_mask(masks, max_length):
+    Returns:
+        torch.Tensor: Padded masks.
+    """
     att_masks = torch.zeros((len(masks), max_length))
     for i, sub in enumerate(masks):
         att_masks[i][-len(sub):] = torch.Tensor(sub)
     return att_masks
 
-# Tokenization does not necessarily match the word split
-# max_length(tokenizer) >= n_words
-# aopc corresponds to fidelity+ --> 1 - we remove the explanation
+def get_top_k_token_id(probabilities_orig: np.ndarray, k: int) -> np.ndarray:
+    """
+    Get the indices of the top k tokens based on their probabilities.
 
+    Args:
+        probabilities_orig (np.ndarray): Original probabilities.
+        k (int): Number of top tokens to select.
 
-def get_top_k_token_id(probabilities_orig, k):
+    Returns:
+        np.ndarray: Array containing the indices of the top k tokens.
+    """
     top_k_token_id = np.argpartition(probabilities_orig, -k, axis=1)[:, -k:]
     sorted_top_k_token_id = np.array([row[np.argsort(-probabilities_orig[i, row])] for i, row in enumerate(top_k_token_id)])
     return sorted_top_k_token_id
 
-def compute_acc_at_k(probs, probs_orig, k=10):
+# Compute Accuracy at k
+def compute_acc_at_k(
+    probs: np.ndarray, 
+    probs_orig: np.ndarray, 
+    k: int = 10
+) -> np.ndarray:
+    """
+    Compute accuracy at k.
+
+    Args:
+        probs (np.ndarray): Predicted probabilities.
+        probs_orig (np.ndarray): Original probabilities.
+        k (int, optional): Number of top tokens.
+
+    Returns:
+        np.array: Accuracy at k.
+    """
     top_k_token_id_orig = get_top_k_token_id(probs_orig, k)
     top_k_token_id = get_top_k_token_id(probs, k)
-    acc_at_k = np.array([np.intersect1d(top_k_token_id_orig[i], top_k_token_id[i]).size/k for i in range(probs.shape[0])])
+    acc_at_k = np.array([np.intersect1d(top_k_token_id_orig[i], top_k_token_id[i]).size / k for i in range(probs.shape[0])])
     return acc_at_k
 
-def compute_prob_diff_at_k(probs, probs_orig, k=10):
+# Compute Probability Difference at k
+def compute_prob_diff_at_k(
+    probs: np.ndarray, 
+    probs_orig: np.ndarray, 
+    k: int = 10
+) -> np.ndarray:
+    """
+    Compute probability difference at k.
+
+    Args:
+        probs (np.ndarray): Predicted probabilities.
+        probs_orig (np.ndarray): Original probabilities.
+        k (int, optional): Number of top tokens.
+
+    Returns:
+        np.ndarray: Array containing the probability difference at k.
+    """
     top_k_token_id_orig = get_top_k_token_id(probs_orig, k)
     top_k_probs_orig = np.array([probs_orig[enum, item] for enum, item in enumerate(top_k_token_id_orig)])
     top_k_probs = np.array([probs[enum, item] for enum, item in enumerate(top_k_token_id_orig)])
-    #p = top_k_probs_orig/np.sum(top_k_probs_orig, axis=1, keepdims=True)
-    #q = np.nan_to_num(top_k_probs/np.sum(top_k_probs, axis=1, keepdims=True))
     top_k_prob_diff = np.sum(top_k_probs_orig - top_k_probs, axis=1)
     return top_k_prob_diff
 
-def run_model(row_args, mask, pipeline):
+# Run Model
+def run_model(
+    row_args: List[Union[str, int, float]], 
+    mask: Optional[np.ndarray], 
+    pipeline
+) -> Tuple[int, np.ndarray]:
+    """
+    Run the model with optional masking.
+
+    Args:
+        row_args (List[Union[str, int, float]]): Model arguments.
+        mask (Optional[np.ndarray]): Mask for masking.
+        pipeline: Model pipeline.
+
+    Returns:
+        Tuple[int, np.ndarray]: Prediction and probabilities.
+    """
     masker = Text(pipeline.tokenizer)
     fm = MaskedModel(pipeline, masker, links.identity, True, *row_args)
     if mask is None:
@@ -131,34 +260,81 @@ def run_model(row_args, mask, pipeline):
     probs = fm.probs
     return pred, probs
 
+# Function to replace words randomly based on a mask
+def replace_words_randomly(
+    str_input: str, 
+    mask: np.ndarray, 
+    tokenizer
+) -> str:
+    """
+    Replaces words randomly based on a mask.
 
-def replace_words_randomly(str_input, mask, tokenizer):
+    Args:
+        str_input (str): The original input string.
+        mask (np.ndarray): The mask indicating which words to replace.
+        tokenizer: Tokenizer object.
+
+    Returns:
+        str: The input string with words replaced.
+    """
+    # Get indices of words to replace
     ids_to_replace = np.where(mask == 0)[0].astype(int)
     words = str_input.split(" ")
     assert len(words) == len(mask)
+
+    # Replace words
     for i in ids_to_replace:
         L = 0
         while(L != len(words)):
+            # Replace with a random word from tokenizer vocabulary
             words[i] = random.choice(list(tokenizer.vocab.keys()))
             new_str_input = " ".join(words)
+            # Check if the new string length is within token length limits
             L = len(tokenizer.encode(new_str_input, add_special_tokens=False))
     return new_str_input
 
+# Function to calculate scores for the explanations
+def get_scores_valid(
+    str_inputs: List[str], 
+    input_ids: List[int], 
+    shapley_scores, 
+    pipeline, 
+    k: float, 
+    token_id: int = 0
+) -> dict:
+    """
+    Calculates scores for the explanations.
 
-def get_scores_valid(str_inputs, input_ids, shapley_scores, pipeline, k, token_id=0):
+    Args:
+        str_inputs (List[str]): List of input strings.
+        input_ids (List[int]): List of input IDs.
+        shapley_scores: Shapley scores.
+        pipeline: Pipeline object.
+        k (float): The percentage of important indices.
+        token_id (int, optional): Token ID. Defaults to 0.
 
+    Returns:
+        dict: Dictionary containing computed scores.
+    """
+    # Generate explanatory masks
     masks = generate_explanatory_masks(str_inputs, shapley_scores, k, pipeline.tokenizer, token_id)
-    # generated masks do not contain prefix and suffix positions!!
 
+    # Initialize lists to store predictions and probabilities
     preds_orig, probs_orig = [], []
     preds_keep, probs_keep = [], []
     preds_rmv, probs_rmv = [], []
     preds_keep_rd, probs_keep_rd = [], []
-    print("Number of explained instances", len(str_inputs))
-    N = len(str_inputs)
+
+    # Initialize lists to store valid input ids and inputs
     valid_ids = []
     valid_inputs = []
+
+    print("Number of explained instances", len(str_inputs))
+    N = len(str_inputs)
+
+    # Iterate through all inputs
     for i, str_input in enumerate(str_inputs):
+        # Skip if mask is None
         if masks[i] is None:
             print("masks[i] is None")
             N -= 1
@@ -166,6 +342,8 @@ def get_scores_valid(str_inputs, input_ids, shapley_scores, pipeline, k, token_i
         else:
             row_args = [str_input]
             mask = np.array(masks[i])
+
+            # Get predictions and probabilities for original, keep, remove, and keep with random replacements
             orig = run_model(row_args, None, pipeline)
             preds_orig.append(orig[0])
             probs_orig.append(orig[1])
@@ -183,17 +361,19 @@ def get_scores_valid(str_inputs, input_ids, shapley_scores, pipeline, k, token_i
             keep_rd = run_model([new_str_input], None, pipeline)
             preds_keep_rd.append(keep_rd[0])
             probs_keep_rd.append(keep_rd[1])
+
             valid_ids.append(input_ids[i])
             valid_inputs.append(str_input)
 
     print("Number of explained instances", N)
 
+    # Concatenate predictions and probabilities lists
     preds_orig, probs_orig = np.concatenate(preds_orig).astype(int), np.concatenate(probs_orig)
     preds_keep, probs_keep = np.concatenate(preds_keep).astype(int), np.concatenate(probs_keep)
     preds_rmv, probs_rmv = np.concatenate(preds_rmv).astype(int), np.concatenate(probs_rmv)
     preds_keep_rd, probs_keep_rd = np.concatenate(preds_keep_rd).astype(int), np.concatenate(probs_keep_rd)
 
-
+    # Calculate fidelity and log-odds
     top_1_probs_orig = torch.Tensor([probs_orig[enum, item] for enum, item in enumerate(preds_orig)]).detach().cpu().numpy()
     top_1_probs_keep = torch.Tensor([probs_keep[enum, item] for enum, item in enumerate(preds_orig)]).detach().cpu().numpy()
     top_1_probs_rmv = torch.Tensor([probs_rmv[enum, item] for enum, item in enumerate(preds_orig)]).detach().cpu().numpy()
@@ -203,9 +383,9 @@ def get_scores_valid(str_inputs, input_ids, shapley_scores, pipeline, k, token_i
     fid_rmv = top_1_probs_orig - top_1_probs_rmv
     fid_keep_rd = top_1_probs_orig - top_1_probs_keep_rd
 
-    # Calculate log-odds
     log_odds_keep = np.log(top_1_probs_keep + 1e-6) - np.log(top_1_probs_orig + 1e-6)
 
+    # Calculate accuracy at k and probability difference at k
     acc_at_k = compute_acc_at_k(probs_keep, probs_orig, k=10)
     prob_diff_at_k = compute_prob_diff_at_k(probs_keep, probs_orig, k=10)
 
@@ -220,8 +400,15 @@ def get_scores_valid(str_inputs, input_ids, shapley_scores, pipeline, k, token_i
         "input": valid_inputs,
     }
 
-
+# Function to save scores
 def save_scores(args, scores):
+    """
+    Saves the computed scores to a file.
+
+    Args:
+        args: Arguments object.
+        scores: Dictionary containing computed scores.
+    """
     save_dir = os.path.join(args.result_save_dir, f'scores/{args.model_name}/{args.dataset}/{args.algorithm}/seed_{args.seed}/')
     os.makedirs(save_dir, exist_ok=True)
     filename = "scores_"
@@ -231,16 +418,4 @@ def save_scores(args, scores):
     with open(os.path.join(save_dir, filename), "wb") as f:
         pickle.dump(scores, f)
 
-
-if __name__ == "__main__":
-    parser, args = arg_parse()
-    fix_random_seed(args.seed)
-
-    save_dir = os.path.join(args.result_save_dir, 'shap_values')
-    filename = f"shap_values_{args.dataset}_{args.model_name}_{args.algorithm}_{args.k}.pkl"
-    with open(os.path.join(args.result_save_dir, filename), "rb") as f:
-        shap_values = pickle.load(f)
-    explanations = shap_values.values
-
-    #scores = get_scores(args, data, explanations, lmmodel)
-    #save_scores(args, scores)
+    

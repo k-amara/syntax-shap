@@ -70,39 +70,38 @@ def arg_parse():
     )
 
     parser.add_argument(
-        "--shuffle", type=str, default='True'
+        "--shuffle", type=str, default='True', help="shuffle the data if 'True' else 'False'", choices=["True", "False"]
     )
 
     parser.add_argument(
         "--num_batch", type=int, default=None
     )
 
-
     parser.add_argument(
         "--dataset",
         type=str,
-        default="negation", # ["generics_kb_best_filtered"]
+        default="negation", choices=["negation", "rocstories", "generics_kb"]
     )
 
     parser.add_argument(
         "--model_name",
         help="The type of shapley value algorithm",
         type=str,
-        default="gpt2", # ["gpt2", "mistral"]
+        default="gpt2", choices=["gpt2", "mistral"]
     )
 
     parser.add_argument(
         "--algorithm",
         help="The type of shapley value algorithm",
         type=str,
-        default="syntax", # ["random", "partition", "shap", "syntax", "syntax-w"]
+        default="syntax", choices=["random", "partition", "shap", "syntax", "syntax-w"]
     )
 
     parser.add_argument(
         "--threshold",
         help="The percentage of important indices ",
         type=float,
-        default=0.2, 
+        default=0.2, choices=range(0, 1)
     )
 
     args, unknown = parser.parse_known_args()
