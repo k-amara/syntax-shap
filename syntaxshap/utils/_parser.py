@@ -95,7 +95,7 @@ def arg_parse():
         "--algorithm",
         help="The type of shapley value algorithm",
         type=str,
-        default="dtree", # ["partition", "exact", "dtree", "r-dtree"]
+        default="syntax", # ["random", "partition", "shap", "syntax", "syntax-w"]
     )
 
     parser.add_argument(

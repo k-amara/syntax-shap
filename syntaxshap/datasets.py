@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import sklearn.datasets
 
-import syntaxshap
 
 # dataset = load_dataset("generics_kb", "generics_kb")
 
