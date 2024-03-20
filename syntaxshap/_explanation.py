@@ -13,7 +13,7 @@ from slicer import Alias, Obj, Slicer
 from utils._exceptions import DimensionError
 from utils._general import OpChain
 
-op_chain_root = OpChain("shap2.Explanation")
+op_chain_root = OpChain("syntaxshap.Explanation")
 class MetaExplanation(type):
     """ This metaclass exposes the Explanation object's methods for creating template op chains.
     """
@@ -110,9 +110,6 @@ class Explanation(metaclass=MetaExplanation):
 
         self.output_dims = compute_output_dims(values, base_values, data, output_names)
         values_shape = _compute_shape(values)
-        print("values_shape", values_shape)
-        print("values", values)
-        print("self.output_dims", self.output_dims)
         if output_names is None and len(self.output_dims) == 1:
             output_names = [f"Output {i}" for i in range(values_shape[self.output_dims[0]])]
 
@@ -138,7 +135,7 @@ class Explanation(metaclass=MetaExplanation):
             elif output_names_order == 2:
                 output_names = Obj(output_names, [0] + list(self.output_dims))
             else:
-                raise ValueError("shap2.Explanation does not yet support output_names of order greater than 3!")
+                raise ValueError("syntaxshap.Explanation does not yet support output_names of order greater than 3!")
 
         if not hasattr(base_values, "__len__") or len(base_values) == 0:
             pass
@@ -862,7 +859,7 @@ class Cohorts:
         return new_cohorts
 
     def __repr__(self):
-        return f"<shap2._explanation.Cohorts object with {len(self.cohorts)} cohorts of sizes: {[v.shape for v in self.cohorts.values()]}>"
+        return f"<syntaxshap._explanation.Cohorts object with {len(self.cohorts)} cohorts of sizes: {[v.shape for v in self.cohorts.values()]}>"
 
 
 def _auto_cohorts(shap_values, max_cohorts):

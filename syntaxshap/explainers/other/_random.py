@@ -69,21 +69,3 @@ class Random(Explainer):
             "output_names": self.model.output_names if hasattr(self.model, "output_names") else None
         }
 
-
-
-    # def __call__(self, X):
-    #     start_time = time.time()
-    #     if self.constant:
-    #         if self.constant_attributions is None:
-    #             self.constant_attributions = np.random.randn(X.shape[1])
-    #         return Explanation(np.tile(self.constant_attributions, (X.shape[0],1)), X, compute_time=time.time() - start_time)
-    #     else:
-    #         return Explanation(np.random.randn(*X.shape), X, compute_time=time.time() - start_time)
-
-    # def attributions(self, X):
-    #     if self.constant:
-    #         if self.constant_attributions is None:
-    #             self.constant_attributions = np.random.randn(X.shape[1])
-    #         return np.tile(self.constant_attributions, (X.shape[0],1))
-    #     else:
-    #         return np.random.randn(*X.shape)

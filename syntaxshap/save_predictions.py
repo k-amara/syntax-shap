@@ -1,25 +1,30 @@
-import csv
 import os
 import pandas as pd
 import models
 import numpy as np
-from datasets import generics_kb, generics_kb_large, inconsistent_negation, rocstories
+from datasets import generics_kb, inconsistent_negation, rocstories
 import torch
 import transformers
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from utils import arg_parse, fix_random_seed
 
-#import shap
-
+# Minimum required version of Transformers library
 MIN_TRANSFORMERS_VERSION = "4.25.1"
 
-# check transformers version
+# Check if the installed Transformers version meets the minimum requirement
 assert (
     transformers.__version__ >= MIN_TRANSFORMERS_VERSION
 ), f"Please upgrade transformers to version {MIN_TRANSFORMERS_VERSION} or higher."
 
+def save_predictions(args):
+    """
+    Generates and saves predictions for a given dataset using a specified model.
 
-def main(args):
+    Args:
+        args: Parsed command-line arguments.
+
+    """
+    # Fix random seed for reproducibility
     fix_random_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -29,7 +34,7 @@ def main(args):
         tokenizer_load = args.model_name
         model = AutoModelForCausalLM.from_pretrained(model_load)
         model.to(device)
-        # set text-generation params under task_specific_params
+        # Set text-generation parameters under task_specific_params
         model.config.task_specific_params["text-generation"] = {
             "do_sample": True,
             "max_new_tokens": 1,
@@ -47,23 +52,23 @@ def main(args):
         
     model.config.is_decoder = True
 
-
-    # model.save_pretrained(f'/cluster/work/zhang/kamara/syntax-shap/models/{args.model_name}')
+    # Load the tokenizer
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_load)
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "left"
     
+    # Create the language model
     lmmodel = models.TextGeneration(model, tokenizer, device=device)
 
     #### Prepare the data ####
     if args.dataset == "negation":
         data, _ = inconsistent_negation(args.data_save_dir)
-    elif args.dataset == "generics-0":
-        data, _ = generics_kb(args.data_save_dir)
     elif args.dataset == "generics":
-        data, _ = generics_kb_large(args.data_save_dir)
+        data, _ = generics_kb(args.data_save_dir)
     elif args.dataset == "rocstories":
         data, _ = rocstories(args.data_save_dir)
+    
+    # Generate predictions and save them to a CSV file
     input_ids = np.arange(len(data))
     df_pred = pd.DataFrame(columns=['input_id', 'input', 'y'])
     df_pred['input'] = data
@@ -71,28 +76,12 @@ def main(args):
     df_pred['y'] = df_pred['input'].apply(lambda x: lmmodel.tokenizer.decode(lmmodel(x)[0]))
     print(df_pred.head(10))
 
-    df_pred.to_csv(f'{args.data_save_dir}/{args.dataset}/seed_{args.seed}/{args.dataset}_{args.model_name}_{args.seed}_predictions.csv', index=False)
-    print("Done!")
-    
-
+    # Save predictions to a CSV file
+    output_file = f'{args.data_save_dir}/{args.dataset}/seed_{args.seed}/{args.dataset}_{args.model_name}_{args.seed}_predictions.csv'
+    df_pred.to_csv(output_file, index=False)
+    print("Predictions saved to:", output_file)
 
 if __name__ == "__main__":
+    # Parse command-line arguments and save predictions
     parser, args = arg_parse()
-
-    print('results directory', args.result_save_dir)
-
-    # Get the absolute path to the parent directory of the current file
-    parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    print(parent_dir)
-
-    """# Load the config file
-    config_path = os.path.join(parent_dir, "configs", "dataset.yaml")
-    # read the configuration file
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-
-    # loop through the config and add any values to the parser as arguments
-    for key, value in config[args.dataset_name].items():
-        setattr(args, key, value)
-    """
-    main(args)
+    save_predictions(args)

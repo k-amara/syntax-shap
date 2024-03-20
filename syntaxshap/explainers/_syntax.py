@@ -134,7 +134,7 @@ class SyntaxExplainer(Explainer):
             masked samples will then be evaluated using the model function and the outputs averaged.
             As a shortcut for the standard masking using by SHAP you can pass a background data matrix
             instead of a function and that matrix will be used for masking. Domain specific masking
-            functions are available in shap such as shap.maksers.Image for images and shap.maskers.Text
+            functions are available in shap such as syntaxshap.maskers.Text
             for text.
 
         type: str
@@ -143,8 +143,7 @@ class SyntaxExplainer(Explainer):
 
         Examples
         --------
-        See `Syntax explainer examples <https://shap.readthedocs.io/en/latest/api_examples/explainers/SyntaxExplainer.html>`_
-        """
+       """
 
         super().__init__(model, masker, link=link, linearize_link=linearize_link, \
                          output_names = output_names, feature_names=feature_names)
@@ -274,86 +273,46 @@ class SyntaxExplainer(Explainer):
         tree_df = tree_df[tree_df['token'] != 'MASK']
         return tree_df
 
-    def compute_shapley_values(self, fm, f00, M, algorithm='syntax', dependency_dt=None, weighted=False, confounding=False):
+    def compute_shapley_values(self, fm, f00, M, algorithm='syntax', dependency_dt=None, weighted=False):
         if (dependency_dt is not None) and (dependency_dt['position'].max() + 1 != M):
             return ValueError("The tokenizer divided words into subwords and the dependency tree only consider full words")
         dt_exact = feature_exact(M)
 
         count_updates = np.zeros(M, dtype=int)
+        
+        if algorithm=='syntax' or algorithm=='syntax-w':
+            causal_ordering = []
+            # Find unique levels
+            unique_levels = dependency_dt['level'].unique()
 
-        if algorithm=='r-syntax':
-            m00 = np.zeros(len(fm), dtype=bool)
-            tree_levels = np.zeros(M, dtype=int)
-            # Determine the size of the array
-            max_pos = dependency_dt['position'].max()
-            assert M == max_pos + 1
+            # Loop over unique levels
+            for level in unique_levels:
+                # Print the positions of rows for each level
+                positions = dependency_dt[dependency_dt['level'] == level]['position'].tolist()
+                causal_ordering.append(positions)
 
-            # Populate the array using 'level' as index
-            for _, row in dependency_dt.iterrows():
-                tree_levels[row['position']] = row['level']
+            dt = feature_exact(M, asymmetric=True, causal_ordering=causal_ordering)
 
-            levels = np.sort(np.unique(tree_levels))
-            for l in levels:
-                ind_at_level = np.where(tree_levels==l)[0]
-                for ind in ind_at_level:
-                    if confounding:
-                        # Only indices of the nodes at level l that have the same parent as i
-                        list_s = np.array(dependency_dt['sibling_positions'].iloc[ind])
-                        sibling_at_level = list_s[list_s<M]
-                        m01 = m00.copy()
-                        if len(sibling_at_level)>0:
-                            m01[sibling_at_level] = 1
-                        m00l = m01.copy()
-                        m00l[ind] = 0 # new base
-                        f00l = fm(m00l.reshape(1, -1))[0]
-                        f01 = fm(m01.reshape(1, -1))[0]
-                        # weight = dt_exact[dt_exact['mask'].apply(lambda x: len(x) == len(m00l) and all(i == j for i, j in zip(x, m00l)))]['weight'].iloc[0]
-                        weight = dependency_dt[dependency_dt['position'] == ind]['level_weight'] if weighted else 1
-                        self.dvalues[ind] += (f01 - f00l) * weight
-                        count_updates[ind] += 1
-                    else:
-                        m01 = m00.copy()
-                        m01[ind] = 1
-                        f01 = fm(m01.reshape(1, -1))[0]
-                        weight = dependency_dt[dependency_dt['position'] == ind]['level_weight'] if weighted else 1
-                        self.dvalues[ind] += (f01 - f00) * weight
-                        count_updates[ind] += 1
-                m00[ind_at_level]=1
+        elif algorithm=='shap':
+            dt = dt_exact
 
         else:
-            if algorithm=='syntax' or algorithm=='syntax-w':
-                causal_ordering = []
-                # Find unique levels
-                unique_levels = dependency_dt['level'].unique()
+            return ValueError("The algorithm must be either 'syntax', 'syntax-w' or 'shap'")
 
-                # Loop over unique levels
-                for level in unique_levels:
-                    # Print the positions of rows for each level
-                    positions = dependency_dt[dependency_dt['level'] == level]['position'].tolist()
-                    causal_ordering.append(positions)
+        dt = dt.reset_index(drop=True)
+        max_id_combination = dt.index.max()
 
-                dt = feature_exact(M, asymmetric=True, causal_ordering=causal_ordering)
-
-            elif algorithm=='shap':
-                dt = dt_exact
-
-            # Reducing the prediction DataFrame
-            dt = dt.reset_index(drop=True)
-            max_id_combination = dt.index.max()
-
-            # Predictions
-
-            for i in range(max_id_combination):
-                combination = dt['features'][i]
-                m00 = convert_feat_to_mask(combination, M)
-                remaining_indices = list(set(range(M)) - set(combination))
-                for ind in remaining_indices:
-                    m10 = m00.copy()
-                    m10[ind] = 1
-                    f10 = fm(m10.reshape(1,-1))[0]
-                    weight = dependency_dt[dependency_dt['position'] == ind]['level_weight'] if weighted else 1
-                    self.dvalues[ind] += (f10-f00) * weight
-                    count_updates[ind] += 1
+        for i in range(max_id_combination):
+            combination = dt['features'][i]
+            m00 = convert_feat_to_mask(combination, M)
+            remaining_indices = list(set(range(M)) - set(combination))
+            for ind in remaining_indices:
+                m10 = m00.copy()
+                m10[ind] = 1
+                f10 = fm(m10.reshape(1,-1))[0]
+                weight = dependency_dt[dependency_dt['position'] == ind]['level_weight'] if weighted else 1
+                self.dvalues[ind] += (f10-f00) * weight
+                count_updates[ind] += 1
 
         self.values = self.dvalues[:M]/count_updates[:, np.newaxis]
         self.values = self.values/np.sum(self.values)

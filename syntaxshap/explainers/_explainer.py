@@ -43,15 +43,15 @@ class Explainer(Serializable):
             masked samples will then be evaluated using the model function and the outputs averaged.
             As a shortcut for the standard masking using by SHAP you can pass a background data matrix
             instead of a function and that matrix will be used for masking. Domain specific masking
-            functions are available in shap such as shap.ImageMasker for images and shap.TokenMasker
+            functions are available in shap such as syntaxshap.ImageMasker for images and syntaxshap.TokenMasker
             for text. In addition to determining how to replace hidden features, the masker can also
             constrain the rules of the cooperative game used to explain the model. For example
-            shap.TabularMasker(data, hclustering="correlation") will enforce a hierarchical clustering
+            syntaxshap.TabularMasker(data, hclustering="correlation") will enforce a hierarchical clustering
             of coalitions for the game (in this special case the attributions are known as the Owen values).
 
         link : function
             The link function used to map between the output units of the model and the SHAP value units. By
-            default it is shap.links.identity, but shap.links.logit can be useful so that expectations are
+            default it is syntaxshap.links.identity, but syntaxshap.links.logit can be useful so that expectations are
             computed in probability units while explanations remain in the (more naturally additive) log-odds
             units. For more details on how link functions work see any overview of link functions for generalized
             linear models.
@@ -85,7 +85,7 @@ class Explainer(Serializable):
         self.keep_prefix = parsed_tokenizer_dict['keep_prefix']
         self.keep_suffix = parsed_tokenizer_dict['keep_suffix']
 
-        # wrap the incoming masker object as a shap.Masker object
+        # wrap the incoming masker object as a syntaxshap.Masker object
         if (
             isinstance(masker, pd.DataFrame)
             or ((isinstance(masker, np.ndarray) or scipy.sparse.issparse(masker)) and len(masker.shape) == 2)
@@ -129,9 +129,9 @@ class Explainer(Serializable):
         if is_transformers_lm(self.model):
             self.model = models.TeacherForcing(self.model, self.masker.tokenizer)
             self.masker = maskers.OutputComposite(self.masker, self.model.text_generate)
-        elif safe_isinstance(self.model, "shap.models.TeacherForcing") and safe_isinstance(self.masker, ["shap.maskers.Text", "shap.maskers.Image"]):
+        elif safe_isinstance(self.model, "syntaxshap.models.TeacherForcing") and safe_isinstance(self.masker, ["syntaxshap.maskers.Text", "syntaxshap.maskers.Image"]):
             self.masker = maskers.OutputComposite(self.masker, self.model.text_generate)
-        elif safe_isinstance(self.model, "shap.models.TopKLM") and safe_isinstance(self.masker, "shap.maskers.Text"):
+        elif safe_isinstance(self.model, "syntaxshap.models.TopKLM") and safe_isinstance(self.masker, "syntaxshap.maskers.Text"):
             self.masker = maskers.FixedComposite(self.masker)
 
         #self._brute_force_fallback = explainers.BruteForce(self.model, self.masker)
@@ -440,7 +440,7 @@ class Explainer(Serializable):
             return cls._instantiated_load(in_file, model_loader=model_loader, masker_loader=masker_loader)
 
         kwargs = super().load(in_file, instantiate=False)
-        with Deserializer(in_file, "shap.Explainer", min_version=0, max_version=0) as s:
+        with Deserializer(in_file, "syntaxshap.Explainer", min_version=0, max_version=0) as s:
             kwargs["model"] = s.load("model", model_loader)
             kwargs["masker"] = s.load("masker", masker_loader)
             kwargs["link"] = s.load("link")

@@ -9,59 +9,60 @@ import pickle
 from .._explainer import Explainer
 
 class LimeTextGeneration(Explainer):
-    """ Simply wrap of lime.lime_tabular.LimeTabularExplainer into the common shap interface.
+    """
+    Wrapper for LimeTextExplainer into the common SHAP interface for text generation models.
 
-    Parameters
-    ----------
-    model : function or iml.Model
-        User supplied function that takes a matrix of samples (# samples x # features) and
-        computes the output of the model for those samples. The output can be a vector
-        (# samples) or a matrix (# samples x # model outputs).
+    Parameters:
+        model (function or iml.Model): 
+            User-supplied function that takes a matrix of samples (# samples x # features) and
+            computes the output of the model for those samples. The output can be a vector
+            (# samples) or a matrix (# samples x # model outputs).
 
-    data : numpy.array
-        The background dataset.
+        data (numpy.array): 
+            The background dataset.
 
-    mode : "classification" or "regression"
-        Control the mode of LIME tabular.
+        batch_size (int): 
+            Size of batches for batch prediction.
+
+        mode (str): 
+            Mode of LimeTextGeneration, either "classification" or "regression".
     """
 
-    def __init__(self, model, data, batch_size = 100, mode="classification"):
+    def __init__(self, model, data, batch_size=100, mode="classification"):
         self.model = model
         if mode not in ["classification", "regression"]:
-            emsg = f"Invalid mode {mode!r}, must be one of 'classification' or 'regression'"
-            raise ValueError(emsg)
+            raise ValueError(f"Invalid mode {mode!r}, must be one of 'classification' or 'regression'")
         self.mode = mode
 
-        # get all vocabulary for text generation
+        # Get vocabulary for text generation
         voc = model.tokenizer.get_vocab()
         inv_voc = {v: k for k, v in voc.items()}
         self.vocab = dict(sorted(inv_voc.items()))
 
-
         if isinstance(data, pd.DataFrame):
             data = data.values
         self.data = data
-        self.explainer = LimeTextExplainer(class_names = self.vocab)
-        
+        self.explainer = LimeTextExplainer(class_names=self.vocab)
+
+        # Compute predictions
+        # If the data is too large, we need to split it into batches
         if len(data) > 300:
             predictions = []
-            print("batch_size", batch_size)
             for i in range(0, len(data), batch_size):
                 batch_data = data[i:i + batch_size]
                 batch_predictions = self.model(batch_data).reshape(-1)
                 predictions.append(batch_predictions)
             self.predictions = np.concatenate(predictions)
-            print("predictions", self.predictions.shape)
         else:
             self.predictions = self.model(data).reshape(-1)
-        
 
+        # Check output dimension
         out = self.model(data[0:1])
         if len(out.shape) == 1:
             self.out_dim = 1
             self.flat_out = True
             if mode == "classification":
-                def pred(X): # assume that 1d outputs are probabilities
+                def pred(X):  # Assume 1D outputs are probabilities
                     preds = self.model(X).reshape(-1, 1)
                     p0 = 1 - preds
                     return np.hstack((p0, preds))
@@ -70,26 +71,28 @@ class LimeTextGeneration(Explainer):
             self.out_dim = self.model(data[0:1]).shape[1]
             self.flat_out = False
 
+        # Fit linear model
         self.fit_linear_model()
         self._s = None
 
     def fit_linear_model(self):
-        # vectorize to tf-idf vectors
-        self.tfidf_vc = TfidfVectorizer(min_df = 10, max_features = 100000, analyzer = "word", ngram_range = (1, 2), stop_words = 'english', lowercase = True)
+        # Vectorize to tf-idf vectors
+        self.tfidf_vc = TfidfVectorizer(min_df=10, max_features=100000, analyzer="word", ngram_range=(1, 2), stop_words='english', lowercase=True)
         data_vc = self.tfidf_vc.fit_transform(self.data)
 
-        linear_model = LogisticRegression(C = 0.5, solver = "sag")
+        # Fit logistic regression model
+        linear_model = LogisticRegression(C=0.5, solver="sag")
         self.linear_model = linear_model.fit(data_vc, self.predictions)        
 
     def __call__(self, X):
+        # Create pipeline
         c = make_pipeline(self.tfidf_vc, self.linear_model)
-        explainer = LimeTextExplainer(class_names = self.vocab)
+        explainer = LimeTextExplainer(class_names=self.vocab)
         attributions = []
         for i in range(X.shape[0]):
-            exp = explainer.explain_instance(X[i], c.predict_proba, num_features = 20)
+            # Explain instance
+            exp = explainer.explain_instance(X[i], c.predict_proba, num_features=20)
             words_order = X[i].split()
-            print("X[i]", X[i])
-            print("words_order", words_order)
             exp_dict = dict(exp.as_list())
             explanation = [exp_dict[k] for k in words_order if k in exp_dict]
             attributions.append(np.array(explanation)[:, np.newaxis])
@@ -101,5 +104,3 @@ class LimeTextGeneration(Explainer):
             raise Exception("You must run the explainer before saving it!")
         with open(filename, 'wb') as outp:  # Overwrites any existing file.
             pickle.dump(self._s, outp, pickle.HIGHEST_PROTOCOL)
-
-
