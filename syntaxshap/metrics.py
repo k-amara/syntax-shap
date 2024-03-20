@@ -294,7 +294,7 @@ def replace_words_randomly(
     return new_str_input
 
 # Function to calculate scores for the explanations
-def get_scores_valid(
+def get_scores(
     str_inputs: List[str], 
     input_ids: List[int], 
     shapley_scores, 
