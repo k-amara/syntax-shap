@@ -27,15 +27,8 @@ __pycache__
 /docs/generated/
 /docs/local
 /javascript/build/*
-/shap2.egg-info
-/shap2/_cext*
-/shap2/_version.py
-/shap2/cached_data
-/tests/local_scratch.py
-/tests/mnist_data
 catboost_info
 node_modules
-/tests/*
 /clutils/*
 /models/*
 <<<<<<< HEAD

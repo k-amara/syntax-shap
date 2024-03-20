@@ -51,7 +51,8 @@ def main(args):
             model = AutoModelForCausalLM.from_pretrained(model_load, load_in_4bit=True)
         else:
             model = AutoModelForCausalLM.from_pretrained(model_load, torch_dtype=torch.float16, device_map="auto")
-        
+    else:
+        raise ValueError("Unknown model type passed: %s!" % args.model_name)
     model.config.is_decoder = True
 
 
@@ -62,8 +63,8 @@ def main(args):
     
     lmmodel = models.TextGeneration(model, tokenizer, device=device)
     parsed_tokenizer_dict = parse_prefix_suffix_for_tokenizer(lmmodel.tokenizer)
-    keep_prefix = parsed_tokenizer_dict['keep_prefix']
-    keep_suffix = parsed_tokenizer_dict['keep_suffix']
+    keep_prefix = parsed_tokenizer_dict['keep_prefix'] # check that keep_prefix is not None, value 0 or 1
+    keep_suffix = parsed_tokenizer_dict['keep_suffix'] # check that keep_prefix is not None, value 0 or 1
 
     #### Prepare the data ####
     if args.dataset == "negation":
@@ -72,6 +73,8 @@ def main(args):
         data, _ = generics_kb_large(args.data_save_dir)
     elif args.dataset == "rocstories":
         data, _ = rocstories(args.data_save_dir)
+    else:
+        raise ValueError("Unknown dataset type passed: %s!" % args.dataset)
     filtered_data, filtered_ids = filter_data(data, lmmodel.tokenizer, args, keep_prefix, keep_suffix)
     # Get permutation indices
     if eval(args.shuffle):
@@ -80,7 +83,7 @@ def main(args):
         permutation_indices = np.arange(len(filtered_data))
 
     # Shuffle both arrays using the same permutation indices
-    filtered_data = filtered_data[permutation_indices]
+    filtered_data = filtered_data[permutation_indices] # check that permutation indices are in the range of 0 and len(filtered_data)
     filtered_ids = filtered_ids[permutation_indices]
 
     if args.num_batch is not None:
