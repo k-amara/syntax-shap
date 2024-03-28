@@ -32,5 +32,5 @@ node_modules
 /clutils/*
 /models/*
 /config/*
-setup.cfg
-pyproject.toml
+/setup.cfg
+/pyproject.toml
