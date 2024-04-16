@@ -102,7 +102,7 @@ def inconsistent_negation(data_save_dir, with_labels=False, display=False):
 def generics_kb(data_save_dir, with_labels=False, display=False):
     path_to_data = os.path.join(data_save_dir, "generics")
     os.makedirs(path_to_data, exist_ok=True)
-    file = os.path.join(path_to_data, "generics_kb.csv")
+    file = os.path.join(path_to_data, "generics_kb_large.csv")
     if not os.path.isfile(file):
         raise ValueError("The dataset generics large is not found")
     csv_file = open(file)
