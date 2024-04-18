@@ -73,6 +73,7 @@ def main(args):
     if args.dataset == "negation":
         data, _ = inconsistent_negation(args.data_save_dir)
     elif args.dataset == "generics":
+        print('args.data_save_dir', args.data_save_dir)
         data, _ = generics_kb(args.data_save_dir)
     elif args.dataset == "rocstories":
         data, _ = rocstories(args.data_save_dir)
@@ -80,29 +81,29 @@ def main(args):
         raise ValueError("Unknown dataset type passed: %s!" % args.dataset)
     
     # Filter data based on tokenizer and specified prefixes/suffixes
-    filtered_data, filtered_ids = filter_data(data, lmmodel.tokenizer, args, keep_prefix, keep_suffix)
-    
+    # filtered_data, filtered_ids = filter_data(data, lmmodel.tokenizer, args, keep_prefix, keep_suffix)
+    data_ids = np.arange(len(data))
     # Get permutation indices
     if eval(args.shuffle):
-        permutation_indices = np.random.permutation(len(filtered_data))
+        permutation_indices = np.random.permutation(len(data))
     else:
-        permutation_indices = np.arange(len(filtered_data))
+        permutation_indices = np.arange(len(data))
 
     # Shuffle both arrays using the same permutation indices
-    filtered_data = filtered_data[permutation_indices] # check that permutation indices are in the range of 0 and len(filtered_data)
-    filtered_ids = filtered_ids[permutation_indices]
+    data = data[permutation_indices] # check that permutation indices are in the range of 0 and len(data)
+    data_ids = data_ids[permutation_indices]
 
     # Limit data to specified batch size and number
     if args.num_batch is not None:
-        assert args.num_batch * args.batch_size < len(filtered_data), "Batch number is too large!"
+        assert args.num_batch * args.batch_size < len(data), "Batch number is too large!"
         n_min = args.batch_size * args.num_batch
-        n_max = args.batch_size * (args.num_batch + 1) if args.num_batch < len(filtered_data) // args.batch_size else len(filtered_data)
+        n_max = args.batch_size * (args.num_batch + 1) if args.num_batch < len(data) // args.batch_size else len(data)
         print(f"Batch number {args.num_batch} of size {args.batch_size} is being used.")
-        filtered_data = filtered_data[n_min:n_max]
-        filtered_ids = filtered_ids[n_min:n_max]
+        data = data[n_min:n_max]
+        data_ids = data_ids[n_min:n_max]
     else:
-        print(f"Batch number is not specified. Using all {len(filtered_data)} examples.")
-    print("Length of filtered_data", len(filtered_data))
+        print(f"Batch number is not specified. Using all {len(data)} examples.")
+    print("Length of data", len(data))
 
     #### Check if the explanations exist ####
     save_dir = os.path.join(args.result_save_dir, f'explanations/{args.model_name}/{args.dataset}/{args.algorithm}/seed_{args.seed}')
@@ -113,9 +114,9 @@ def main(args):
     if os.path.exists(os.path.join(save_dir, filename)):
         print("Loading explanations...")
         results = pickle.load(open(os.path.join(save_dir, filename), "rb"))
-        filtered_explanations = []
+        explanations = []
         for result in results:
-            filtered_explanations.append(result['explanation'])
+            explanations.append(result['explanation'])
     else:
         #### Explain the model ####
         # Choose appropriate explainer based on specified algorithm
@@ -142,17 +143,17 @@ def main(args):
         else:
             raise InvalidAlgorithmError("Unknown algorithm type passed: %s!" % args.algorithm)
         
-        explanations = explainer(filtered_data)
+        explanations = explainer(data)
 
         #### Save the shap values ####
         if args.algorithm == "lime":
-            filtered_explanations = explainer._s
+            explanations = explainer._s
         else: 
-            filtered_explanations = explanations.values
+            explanations = explanations.values
 
         results = []
-        for i in range(len(filtered_explanations)):
-            results.append({'input_id': filtered_ids[i], 'input': filtered_data[i], 'explanation': filtered_explanations[i]})
+        for i in range(len(explanations)):
+            results.append({'input_id': data_ids[i], 'input': data[i], 'explanation': explanations[i]})
         with open(os.path.join(save_dir, filename), "wb") as f:
             pickle.dump(results, f)
 
@@ -160,7 +161,7 @@ def main(args):
     
     #### Evaluate the explanations ####
     # Calculate scores for explanations
-    scores = get_scores(filtered_data, filtered_ids, filtered_explanations, lmmodel, args.threshold)
+    scores = get_scores(data, data_ids, explanations, lmmodel, args.threshold)
     print("scores", scores)
     #save_scores(args, scores)
 

@@ -4,17 +4,15 @@ from itertools import chain, combinations
 import links
 import numpy as np
 import pandas as pd
-import spacy
 from _explanation import Explanation
 from explainers._explainer import Explainer
 from models import Model
 from utils import (
     MaskedModel,
     OpChain,
-    create_dataframe_from_tree,
+    get_token_dependency_tree,
     make_masks,
-    safe_isinstance,
-    spacy_doc_to_tree,
+    safe_isinstance
 )
 
 
@@ -115,7 +113,7 @@ def feature_exact(M, asymmetric=False, causal_ordering=None):
 
 class SyntaxExplainer(Explainer):
 
-    def __init__(self, model, masker, algorithm='syntax', confounding=True, output_names=None, link=links.identity, linearize_link=True,
+    def __init__(self, model, masker, algorithm='syntax', output_names=None, link=links.identity, linearize_link=True,
                  feature_names=None, **call_args):
         """ Uses the Syntax SHAP method to explain the output of any function.
 
@@ -169,7 +167,6 @@ class SyntaxExplainer(Explainer):
         # Define the type of Syntax SHAP
         self.algorithm = algorithm
         self.weighted = True if algorithm == 'syntax-w' else False
-        self.confounding = confounding
 
         # handle higher dimensional tensor inputs
         if self.input_shape is not None and len(self.input_shape) > 1:
@@ -209,7 +206,8 @@ class SyntaxExplainer(Explainer):
         fm = MaskedModel(self.model, self.masker, self.link, self.linearize_link, *row_args)
         # make sure we have the base value and current value outputs
         mask_size_with_prefix_and_suffix = len(fm)
-        M = len(row_args[0].split(' '))
+        print('list of tokens: ', self.masker.tokenizer.encode(row_args[0]))
+        M = len(self.masker.tokenizer.encode(row_args[0])) # number of tokens
         m00 = np.zeros(mask_size_with_prefix_and_suffix, dtype=bool)
         # if not fixed background or no base value assigned then compute base value for a row
         if self._curr_base_value is None or not getattr(self.masker, "fixed_background", False):
@@ -238,16 +236,22 @@ class SyntaxExplainer(Explainer):
 
         if 'syntax' in self.algorithm:
             # Build the dependency dataframe
-            dependency_dt = self.dependency_dt(*row_args)
+            dependency_dt = get_token_dependency_tree(sentence=row_args[0], tokenizer=self.masker.tokenizer)
         else:
             dependency_dt = None
-        self.compute_shapley_values(fm, self._curr_base_value, M, algorithm=self.algorithm, weighted=self.weighted, dependency_dt=dependency_dt, confounding=self.confounding)
+        self.compute_shapley_values(fm, self._curr_base_value, M, algorithm=self.algorithm, weighted=self.weighted, dependency_dt=dependency_dt)
         
         mask_shapes = []
         for s in fm.mask_shapes:
             s = list(s)
             s[0] -= self.keep_prefix + self.keep_suffix
             mask_shapes.append(tuple(s))
+
+        print('sentence: ', row_args[0])
+        print('[s + out_shape[1:] for s in mask_shapes]', [s + out_shape[1:] for s in mask_shapes])
+        print('self.values[:M].copy()', self.values[:M].copy())
+        print('num tokens:', len(self.masker.tokenizer.encode(row_args[0])))
+              
         return {
             "values": self.values[:M].copy(),
             "expected_values": self._curr_base_value if outputs is None else self._curr_base_value[outputs],
@@ -260,22 +264,8 @@ class SyntaxExplainer(Explainer):
     def __str__(self):
         return "explainers.DependencyExplainer()"
 
-    def dependency_dt(self, *args):# Example usage:
-        nlp = spacy.load("en_core_web_sm")
-        text = args[0]
-        doc = nlp(text+' MASK')
-
-        # Convert Spacy dependency tree to a Tree object
-        tree_root = spacy_doc_to_tree(doc)
-
-        # Example usage with the Tree structure
-        tree_df = create_dataframe_from_tree(tree_root)
-        tree_df = tree_df[tree_df['token'] != 'MASK']
-        return tree_df
-
     def compute_shapley_values(self, fm, f00, M, algorithm='syntax', dependency_dt=None, weighted=False):
-        if (dependency_dt is not None) and (dependency_dt['position'].max() + 1 != M):
-            return ValueError("The tokenizer divided words into subwords and the dependency tree only consider full words")
+        
         dt_exact = feature_exact(M)
 
         count_updates = np.zeros(M, dtype=int)

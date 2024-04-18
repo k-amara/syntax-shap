@@ -30,7 +30,7 @@ def test_arguments_range(args):
     # Check the range of threshold argument
     assert 0 <= args.threshold <= 1
     assert args.shuffle in ["True", "False"]
-    assert args.dataset in ["negation", "rocstories", "generics_kb"]
+    assert args.dataset in ["negation", "rocstories", "generics"]
     assert args.model_name in ["gpt2", "mistral"]
     assert args.algorithm in ["random", "partition", "shap", "syntax", "syntax-w"]
     assert args.num_batch is None or args.num_batch > 0

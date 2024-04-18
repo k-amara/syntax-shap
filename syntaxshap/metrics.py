@@ -153,9 +153,10 @@ def run_model(
     pred = fm(mask.reshape(1, -1))[0]
     probs = fm.probs
     return pred, probs
+    
 
 # Function to replace words randomly based on a mask
-def replace_words_randomly(
+def replace_token_randomly(
     str_input: str, 
     mask: np.ndarray, 
     tokenizer
@@ -169,20 +170,20 @@ def replace_words_randomly(
         tokenizer: Tokenizer object.
 
     Returns:
-        str: The input string with words replaced.
+        str: The input string with token ids replaced.
     """
-    # Get indices of words to replace
+    # Get indices of token ids to replace
     ids_to_replace = np.where(mask == 0)[0].astype(int)
-    words = str_input.split(" ")
-    assert len(words) == len(mask)
+    token_ids = tokenizer.encode(str_input)
+    assert  len(token_ids) == len(mask)
 
-    # Replace words
+    # Replace token ids
     for i in ids_to_replace:
         L = 0
-        while(L != len(words)):
+        while(L != len(token_ids)):
             # Replace with a random word from tokenizer vocabulary
-            words[i] = random.choice(list(tokenizer.vocab.keys()))
-            new_str_input = " ".join(words)
+            token_ids[i] = random.choice(list(tokenizer.vocab.values()))
+            new_str_input = tokenizer.decode(token_ids)
             # Check if the new string length is within token length limits
             L = len(tokenizer.encode(new_str_input, add_special_tokens=False))
     return new_str_input

@@ -5,7 +5,7 @@ from ._clustering import (
     partition_tree,
     partition_tree_shuffle,
 )
-from ._dependency_tree import create_dataframe_from_tree, spacy_doc_to_tree
+from ._dependency_tree import get_token_dependency_tree, create_dataframe_from_tree, spacy_doc_to_tree
 from ._general import (
     OpChain,
     approximate_interactions,
@@ -47,6 +47,7 @@ __all__ = [
     "show_progress",
     "spacy_doc_to_tree",
     "create_dataframe_from_tree",
+    "get_token_dependency_tree",
     "arg_parse",
     "fix_random_seed"
 ]
