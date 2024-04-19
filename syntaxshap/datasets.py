@@ -80,23 +80,32 @@ def imdb(display=False, n_points=None):
 
     return data, y
 
+def preprocess_negation_dataset(data_save_dir):
+    path_to_data = os.path.join(data_save_dir, "negation")
+    os.makedirs(path_to_data, exist_ok=True)
+    file = os.path.join(path_to_data, "Inconsistent-Dataset-Negation.tsv")
+    tsv_file = open(file)
+    read_tsv = list(csv.reader(tsv_file, delimiter="\t"))
+    data = pd.DataFrame(read_tsv, columns=['index', 'sentence', 'label'])
+    data = data[['sentence', 'label']]
+    data['sentence_witout_last_token'] = data['sentence'].apply(lambda x: x.rsplit(' ', 1)[0])
+    data.to_csv(os.path.join(path_to_data, "negation.tsv"), index=False)
+    return
+
+
 def inconsistent_negation(data_save_dir, with_labels=False, display=False):
     """ Return the negation text generation training data in a nice package.
     """
     path_to_data = os.path.join(data_save_dir, "negation")
     os.makedirs(path_to_data, exist_ok=True)
-    file = os.path.join(path_to_data, "Inconsistent-Dataset-Negation.tsv")
+    file = os.path.join(path_to_data, "negation.tsv")
     if not os.path.isfile(file):
         raise ValueError("The dataset negation is not found")
-    tsv_file = open(file)
-    read_tsv = list(csv.reader(tsv_file, delimiter="\t"))
-    data, y = [], []
-    for row in read_tsv:
-        data.append(row[1][:-8])
-        y.append(row[1][-7:])
-    data, y = np.array(data), np.array(y)
-    print(f"Loading Inconsistent Negation dataset: {data.shape[0]}")
-    return data, y
+    csv_file = open(file)
+    read_csv = pd.read_csv(csv_file, delimiter=",")
+    data = np.array(list(read_csv['sentence_without_last_token']))
+    print(f"Loading Negation dataset: {data.shape[0]}")
+    return data, None
     
 def generics_kb(data_save_dir, with_labels=False, display=False):
     path_to_data = os.path.join(data_save_dir, "generics")

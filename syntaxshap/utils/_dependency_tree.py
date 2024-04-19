@@ -2,6 +2,8 @@ from collections import deque
 import pandas as pd
 import re
 import spacy
+import spacy
+import textdescriptives as td
 
 class TreeNode:
     def __init__(self, data):
@@ -153,3 +155,16 @@ def get_token_dependency_tree(sentence, tokenizer):
     tree_df = spacy_dependency_tree(sentence)
     dependency_tree = pd.merge(merged_df, tree_df, on=['word', 'word_position'], how='inner')
     return dependency_tree
+
+def compute_dependency_distance(string_list):
+    
+    nlp = spacy.load('en_core_web_sm')
+    nlp.add_pipe('textdescriptives')
+
+    dependency_distances = []
+    for i in range(len(string_list)):
+        doc = nlp(string_list[i])
+        dd = doc._.dependency_distance['dependency_distance_mean']
+        dependency_distances.append(dd)
+
+    return dependency_distances
