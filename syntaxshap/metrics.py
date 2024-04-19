@@ -251,7 +251,7 @@ def get_scores(
             preds_rmv.append(rmv[0])
             probs_rmv.append(rmv[1])
 
-            new_str_input = replace_words_randomly(str_input, mask, pipeline.tokenizer)
+            new_str_input = replace_token_randomly(str_input, mask, pipeline.tokenizer)
             print("new_str_input", new_str_input)
             keep_rd = run_model([new_str_input], None, pipeline)
             preds_keep_rd.append(keep_rd[0])
