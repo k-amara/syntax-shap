@@ -61,7 +61,7 @@ def create_dataframe_from_tree(root):
         # Gather node data
         node_data = {
             "word": node.data.text,
-            #"position": node.data.i,
+            "word_position": node.data.i,
             "level": level,
             "level_weight": 1 / (level + 1),
             "parent": parent.data.text if parent else None
@@ -106,82 +106,30 @@ def spacy_dependency_tree(sentence):
     return tree_df
 
 
-def get_word_subtoken_dict(sentence, tokenizer):
+def compute_position_mapping(sentence, tokenizer):
     """
-    Create a dictionary mapping words to their subtoken IDs.
-
-    Args:
-        sentence (str): Input sentence.
-        tokenizer: Tokenizer object capable of encoding the sentence.
-
-    Returns:
-        dict: Dictionary mapping words to lists of subtoken IDs.
+    Compute the mapping between words and subtokens in a sentence.
     """
-    word_subtoken_dict = {}
-    token_ids = tokenizer.encode(sentence, add_special_tokens=False)
     words = [t.strip() for t in re.findall(r'\b.*?\S.*?(?:\b|$)', sentence)]
+    df_words = pd.DataFrame({'word': words, 'word_position': range(len(words))})
+
+    token_ids = tokenizer(sentence)['input_ids']
+    df_tokens = pd.DataFrame({'token_id': token_ids, 'token_position': range(len(token_ids))})
+    df_tokens['token'] = [tokenizer.decode([token_id]) for token_id in df_tokens['token_id']]
+
+    pos_token_to_word = {}
     k = 0
 
-    for word in words:
+    for i in range(len(words)):
+        word = words[i]
         word_len = 0
-        list_subtokens = []
-
-        # Iterate until the word is fully tokenized
         while word_len < len(word):
-            list_subtokens.append(token_ids[k])
-            decoded_word = tokenizer.decode([token_ids[k]]).replace(' ', '')
+            decoded_word = tokenizer.decode([token_ids[k]]).replace(' ','')
             word_len += len(decoded_word)
+            pos_token_to_word[k] = i
             k += 1
 
-        word_subtoken_dict[word] = list_subtokens
-
-    return word_subtoken_dict
-
-def token_table(sentence, tokenizer):
-    """
-    Create a DataFrame representing token IDs and positions in a sentence.
-
-    Args:
-        sentence (str): Input sentence.
-        tokenizer: Tokenizer object capable of encoding the sentence.
-
-    Returns:
-        pd.DataFrame: DataFrame with columns for token ID, position, and token text.
-    """
-    encoding = tokenizer(sentence)
-    num_tokens = len(encoding['input_ids'])
-    positions = range(num_tokens)
-    df_tokens = pd.DataFrame({'token_id': encoding['input_ids'], 'position': positions})
-    df_tokens['token'] = [tokenizer.decode([token_id]) for token_id in df_tokens['token_id']]
-    return df_tokens
-
-def token_dependency_tree(tree_df, word_subtoken_dict, tokenizer, df_tokens):
-    """
-    Create a token dependency tree DataFrame.
-
-    Args:
-        tree_df (pd.DataFrame): DataFrame representing a tree structure.
-        word_subtoken_dict (dict): Dictionary mapping words to subtoken IDs.
-        tokenizer: Tokenizer object.
-        df_tokens (pd.DataFrame): DataFrame representing token IDs and positions.
-
-    Returns:
-        pd.DataFrame: Token dependency tree DataFrame.
-    """
-    new_rows = []
-    for index, row in tree_df.iterrows():
-        word = row['word']
-        token_ids = word_subtoken_dict[word]  # Use your tokenizer here
-        for token_id in token_ids:
-            new_row = row.copy()
-            new_row['token_id'] = token_id
-            new_row['token'] = tokenizer.decode([token_id])
-            if row['parent'] is not None:
-                new_row['parent_ids'] = word_subtoken_dict[row['parent']]
-            new_rows.append(new_row)
-    token_dt = pd.DataFrame(new_rows)
-    token_dt = pd.merge(token_dt, df_tokens, on=['token_id', 'token'], how='left')
-    return token_dt
+    return df_words, df_tokens, pos_token_to_word
 
 def get_token_dependency_tree(sentence, tokenizer):
     """
@@ -194,8 +142,14 @@ def get_token_dependency_tree(sentence, tokenizer):
     Returns:
         pd.DataFrame: Token dependency tree DataFrame.
     """
-    df_tokens = token_table(sentence, tokenizer)
+    
+    df_words, df_tokens, pos_token_to_word = compute_position_mapping(sentence, tokenizer)
+    # Add 'word' column based on token_id_to_word mapping
+    df_tokens['word_position'] = df_tokens['token_position'].map(pos_token_to_word)
+
+    # Merge based on 'word'
+    merged_df = pd.merge(df_tokens, df_words, on='word_position', how='inner')
+
     tree_df = spacy_dependency_tree(sentence)
-    word_subtoken_dict = get_word_subtoken_dict(sentence, tokenizer)
-    token_dt = token_dependency_tree(tree_df, word_subtoken_dict, tokenizer, df_tokens)
-    return token_dt 
+    dependency_tree = pd.merge(merged_df, tree_df, on=['word', 'word_position'], how='inner')
+    return dependency_tree

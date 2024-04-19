@@ -49,20 +49,12 @@ class Random(Explainer):
 
         # generate random feature attributions
         # we produce small values so our explanation errors are similar to a constant function
-        M = len(row_args[0].split(' '))
-        row_values = np.random.randn(*((M,) + outputs.shape[1:])) * 0.001
-
-        mask_shapes = []
-        for s in fm.mask_shapes:
-            s = list(s)
-            s[0] -= self.keep_prefix + self.keep_suffix
-            mask_shapes.append(tuple(s))
-
+        row_values = np.random.randn(*((len(fm),) + outputs.shape[1:])) * 0.001
 
         return {
             "values": row_values,
             "expected_values": expected_value,
-            "mask_shapes": [(s[0],1) for s in mask_shapes],
+            "mask_shapes": fm.mask_shapes,
             "main_effects": None,
             "clustering": row_clustering,
             "error_std": None,
