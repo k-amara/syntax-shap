@@ -98,7 +98,7 @@ def inconsistent_negation(data_save_dir, with_labels=False, display=False):
     """
     path_to_data = os.path.join(data_save_dir, "negation")
     os.makedirs(path_to_data, exist_ok=True)
-    file = os.path.join(path_to_data, "negation.tsv")
+    file = os.path.join(path_to_data, "negation.csv")
     if not os.path.isfile(file):
         raise ValueError("The dataset negation is not found")
     csv_file = open(file)
