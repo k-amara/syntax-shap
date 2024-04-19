@@ -103,7 +103,7 @@ def arg_parse():
         "--threshold",
         help="The percentage of important indices ",
         type=float,
-        default=0.2, choices=range(0, 1)
+        default=0.2
     )
 
     args, unknown = parser.parse_known_args()
