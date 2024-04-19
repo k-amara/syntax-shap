@@ -153,7 +153,9 @@ def main(args):
 
         results = []
         for i in range(len(explanations)):
-            results.append({'input_id': data_ids[i], 'input': data[i], 'explanation': explanations[i]})
+            token_ids = lmmodel.tokenizer.encode(data[i]).tolist()
+            tokens = [lmmodel.tokenizer.decode(token_id) for token_id in token_ids]
+            results.append({'input_id': data_ids[i], 'input': data[i], 'tokens': tokens, 'token_ids': token_ids, 'explanation': explanations[i]})
         with open(os.path.join(save_dir, filename), "wb") as f:
             pickle.dump(results, f)
 
@@ -163,7 +165,7 @@ def main(args):
     # Calculate scores for explanations
     scores = get_scores(data, data_ids, explanations, lmmodel, args.threshold)
     print("scores", scores)
-    #save_scores(args, scores)
+    save_scores(args, scores)
 
 if __name__ == "__main__":
     parser, args = arg_parse()

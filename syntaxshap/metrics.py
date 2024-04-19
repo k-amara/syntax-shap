@@ -223,6 +223,7 @@ def get_scores(
     # Initialize lists to store valid input ids and inputs
     valid_ids = []
     valid_inputs = []
+    
 
     print("Number of explained instances", len(str_inputs))
     N = len(str_inputs)
@@ -252,7 +253,6 @@ def get_scores(
             probs_rmv.append(rmv[1])
 
             new_str_input = replace_token_randomly(str_input, mask, pipeline.tokenizer)
-            print("new_str_input", new_str_input)
             keep_rd = run_model([new_str_input], None, pipeline)
             preds_keep_rd.append(keep_rd[0])
             probs_keep_rd.append(keep_rd[1])
@@ -260,7 +260,7 @@ def get_scores(
             valid_ids.append(input_ids[i])
             valid_inputs.append(str_input)
 
-    print("Number of explained instances", N)
+    print("Number of explained instances after removing None masks", N)
 
     # Concatenate predictions and probabilities lists
     preds_orig, probs_orig = np.concatenate(preds_orig).astype(int), np.concatenate(probs_orig)
@@ -292,7 +292,7 @@ def get_scores(
         "acc_at_k": acc_at_k,
         "prob_diff_at_k": prob_diff_at_k,
         "input_id": valid_ids,
-        "input": valid_inputs,
+        "input": valid_inputs
     }
 
 # Function to save scores

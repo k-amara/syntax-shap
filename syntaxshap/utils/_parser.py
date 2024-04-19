@@ -8,10 +8,10 @@ from transformers import set_seed
 # Define the path to the data, model, logs, results, and colors
 #
 
-#CKPT_ROOT = "/cluster/home/kamara/syntax-shap/"
-#STORAGE = "/cluster/work/zhang/kamara/syntax-shap/"
-CKPT_ROOT = "/Users/kenzaamara/GithubProjects/syntax-shap/"
-STORAGE = "/Users/kenzaamara/GithubProjects/syntax-shap/"
+CKPT_ROOT = "/cluster/home/kamara/syntax-shap/"
+STORAGE = "/cluster/work/zhang/kamara/syntax-shap/"
+#CKPT_ROOT = "/Users/kenzaamara/GithubProjects/syntax-shap/"
+#STORAGE = "/Users/kenzaamara/GithubProjects/syntax-shap/"
 DATA_DIR = CKPT_ROOT + "data/"
 MODEL_DIR = STORAGE + "models/"
 FIG_DIR = CKPT_ROOT + "figures/"
