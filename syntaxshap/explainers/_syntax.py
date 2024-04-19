@@ -206,10 +206,7 @@ class SyntaxExplainer(Explainer):
         fm = MaskedModel(self.model, self.masker, self.link, self.linearize_link, *row_args)
         # make sure we have the base value and current value outputs
         mask_size_with_prefix_and_suffix = len(fm)
-        print('len(fm): ', len(fm))
-        print('list of tokens: ', self.masker.tokenizer.encode(row_args[0]))
         M = len(self.masker.tokenizer.encode(row_args[0])) # number of tokens
-        print('Number of tokens: ', M)
         m00 = np.zeros(mask_size_with_prefix_and_suffix, dtype=bool)
         # if not fixed background or no base value assigned then compute base value for a row
         if self._curr_base_value is None or not getattr(self.masker, "fixed_background", False):
@@ -248,11 +245,6 @@ class SyntaxExplainer(Explainer):
             s = list(s)
             s[0] -= self.keep_prefix + self.keep_suffix
             mask_shapes.append(tuple(s))
-
-        print('sentence: ', row_args[0])
-        print('[s + out_shape[1:] for s in mask_shapes]', [s + out_shape[1:] for s in mask_shapes])
-        print('self.values[:M].copy()', self.values[:M].copy())
-        print('num tokens:', len(self.masker.tokenizer.encode(row_args[0])))
               
         return {
             "values": self.values[:M].copy(),
@@ -300,12 +292,7 @@ class SyntaxExplainer(Explainer):
             for ind in remaining_indices:
                 m10 = m00.copy()
                 m10[ind] = 1
-                print("len(m00): ", len(m00))
                 f10 = fm(m10.reshape(1,-1))[0]
-                print("dependency_dt: ", dependency_dt)
-                print("ind: ", ind)
-                print("f10: ", f10)
-                print("f00: ", f00)
                 weight = dependency_dt[dependency_dt['token_position'] == ind]['level_weight'] if weighted else 1
                 self.dvalues[ind] += (f10-f00) * weight
                 count_updates[ind] += 1
