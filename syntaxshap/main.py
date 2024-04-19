@@ -153,7 +153,7 @@ def main(args):
 
         results = []
         for i in range(len(explanations)):
-            token_ids = lmmodel.tokenizer.encode(data[i]).tolist()
+            token_ids = lmmodel.tokenizer.encode(data[i])
             tokens = [lmmodel.tokenizer.decode(token_id) for token_id in token_ids]
             results.append({'input_id': data_ids[i], 'input': data[i], 'tokens': tokens, 'token_ids': token_ids, 'explanation': explanations[i]})
         with open(os.path.join(save_dir, filename), "wb") as f:
