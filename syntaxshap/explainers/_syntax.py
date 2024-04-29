@@ -100,8 +100,7 @@ def feature_exact(M, asymmetric=False, causal_ordering=None):
 
     if asymmetric:
         if causal_ordering is None:
-            causal_ordering = [list(range(m))]
-
+            causal_ordering = [list(range(M))]
         dt = dt[dt['features'].apply(lambda x: respects_order(x, causal_ordering))]
         dt['N'] = dt.groupby('n_features')['n_features'].transform('count')
         # dt['weight_approx'] = shapley_weights_approx(M, dt['N'], dt['n_features'])
@@ -269,11 +268,13 @@ class SyntaxExplainer(Explainer):
             # Find unique levels
             unique_levels = dependency_dt['level'].unique()
 
+
             # Loop over unique levels
             for level in unique_levels:
                 # Print the positions of rows for each level
                 positions = dependency_dt[dependency_dt['level'] == level]['token_position'].tolist()
                 causal_ordering.append(positions)
+
             dt = feature_exact(M, asymmetric=True, causal_ordering=causal_ordering)
 
         elif algorithm=='shap':

@@ -40,17 +40,35 @@ def filter_invalid_inputs(data, tokenizer, keep_prefix, keep_suffix):
     invalid_inputs = np.unique(invalid_inputs)
     return invalid_ids, invalid_inputs
 
-def filter_data(data, tokenizer, args, keep_prefix=0, keep_suffix=0):
+def filter_too_many_tokens(data, tokenizer, keep_prefix, keep_suffix, max_n_tokens):
+    invalid_ids = []
+    invalid_inputs = []
+    for id, input in enumerate(data):
+        if any(p in input for p in string.punctuation):
+            invalid_ids.append(id)
+            invalid_inputs.append(input)
+        else:
+            M = len(tokenizer.encode(input))
+            M -= keep_prefix
+            M -= keep_suffix
+            if M > max_n_tokens:
+                invalid_ids.append(id)
+                invalid_inputs.append(input)
+    invalid_inputs = np.unique(invalid_inputs)
+    return invalid_ids, invalid_inputs
+
+
+def filter_data(data, tokenizer, args, keep_prefix=0, keep_suffix=0, max_n_tokens=15):
     #### Filter invalid data ####
     # Tokenization might split words into multiple tokens, which is not supported by the current implementation
     filter_ids_path = os.path.join(args.data_save_dir, f"{args.dataset}/seed_{args.seed}")
     os.makedirs(filter_ids_path, exist_ok=True)
-    filename = os.path.join(filter_ids_path, f"{args.dataset}_{args.model_name}_{args.seed}_invalid_ids.npy")
-    filename_inputs = os.path.join(filter_ids_path, f"{args.dataset}_{args.model_name}_{args.seed}_invalid_inputs.npy")
+    filename = os.path.join(filter_ids_path, f"{args.dataset}_{args.model_name}_{args.seed}_long_inputs_ids.npy")
+    filename_inputs = os.path.join(filter_ids_path, f"{args.dataset}_{args.model_name}_{args.seed}_long_inputs.npy")
     if os.path.exists(filename):
         invalid_ids = np.load(filename, allow_pickle=True)
     else:
-        invalid_ids, invalid_inputs = filter_invalid_inputs(data, tokenizer, keep_prefix, keep_suffix)
+        invalid_ids, invalid_inputs = filter_too_many_tokens(data, tokenizer, keep_prefix, keep_suffix, max_n_tokens)
         np.save(filename, invalid_ids)
         np.save(filename_inputs, invalid_inputs)
     filtered_data = np.delete(data, invalid_ids, axis=0)

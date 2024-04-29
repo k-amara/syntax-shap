@@ -73,7 +73,6 @@ def main(args):
     if args.dataset == "negation":
         data, _ = inconsistent_negation(args.data_save_dir)
     elif args.dataset == "generics":
-        print('args.data_save_dir', args.data_save_dir)
         data, _ = generics_kb(args.data_save_dir)
     elif args.dataset == "rocstories":
         data, _ = rocstories(args.data_save_dir)
@@ -82,16 +81,16 @@ def main(args):
     
     # Filter data based on tokenizer and specified prefixes/suffixes
     # filtered_data, filtered_ids = filter_data(data, lmmodel.tokenizer, args, keep_prefix, keep_suffix)
-    data_ids = np.arange(len(data))
+    filtered_data, filtered_ids = filter_data(data, lmmodel.tokenizer, args, keep_prefix, keep_suffix)
     # Get permutation indices
     if eval(args.shuffle):
-        permutation_indices = np.random.permutation(len(data))
+        permutation_indices = np.random.permutation(len(filtered_data))
     else:
-        permutation_indices = np.arange(len(data))
+        permutation_indices = np.arange(len(filtered_data))
 
     # Shuffle both arrays using the same permutation indices
-    data = data[permutation_indices] # check that permutation indices are in the range of 0 and len(data)
-    data_ids = data_ids[permutation_indices]
+    data = filtered_data[permutation_indices] # check that permutation indices are in the range of 0 and len(data)
+    data_ids = filtered_ids[permutation_indices]
 
     # Limit data to specified batch size and number
     if args.num_batch is not None:
