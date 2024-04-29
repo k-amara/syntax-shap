@@ -40,27 +40,38 @@ def filter_invalid_inputs(data, tokenizer, keep_prefix, keep_suffix):
     invalid_inputs = np.unique(invalid_inputs)
     return invalid_ids, invalid_inputs
 
-def filter_too_many_tokens(data, tokenizer, keep_prefix, keep_suffix, max_n_tokens):
+def filter(data, tokenizer, keep_prefix, keep_suffix, max_n_tokens):
     invalid_ids = []
     invalid_inputs = []
+    nlp = spacy.load("en_core_web_sm")
     for id, input in enumerate(data):
         if any(p in input for p in string.punctuation):
             invalid_ids.append(id)
             invalid_inputs.append(input)
-        else:
-            M = len(tokenizer.encode(input))
-            M -= keep_prefix
-            M -= keep_suffix
-            if M > max_n_tokens:
-                invalid_ids.append(id)
-                invalid_inputs.append(input)
-    invalid_inputs = np.unique(invalid_inputs)
+            continue
+        M = len(tokenizer.encode(input))
+        M -= keep_prefix
+        M -= keep_suffix
+        if M > max_n_tokens:
+            invalid_ids.append(id)
+            invalid_inputs.append(input)
+            continue
+        doc = nlp(input+' MASK')
+        sentence_spans = list(doc.sents)
+        if len(sentence_spans) > 1:
+            invalid_ids.append(id)
+            invalid_inputs.append(input)
+    invalid_inputs, invalid_ids = np.unique(invalid_inputs), np.unique(invalid_ids)
     return invalid_ids, invalid_inputs
 
 
+
 def filter_data(data, tokenizer, args, keep_prefix=0, keep_suffix=0, max_n_tokens=15):
-    #### Filter invalid data ####
-    # Tokenization might split words into multiple tokens, which is not supported by the current implementation
+    """
+    Filter data on 2 criteria and remove inputs:
+        - If the input contains more than 15 tokens
+        - If the input contains more than 1 sentence span (according to spaCy dependency tree)
+    """
     filter_ids_path = os.path.join(args.data_save_dir, f"{args.dataset}/seed_{args.seed}")
     os.makedirs(filter_ids_path, exist_ok=True)
     filename = os.path.join(filter_ids_path, f"{args.dataset}_{args.model_name}_{args.seed}_long_inputs_ids.npy")
@@ -68,9 +79,13 @@ def filter_data(data, tokenizer, args, keep_prefix=0, keep_suffix=0, max_n_token
     if os.path.exists(filename):
         invalid_ids = np.load(filename, allow_pickle=True)
     else:
-        invalid_ids, invalid_inputs = filter_too_many_tokens(data, tokenizer, keep_prefix, keep_suffix, max_n_tokens)
+        invalid_ids, invalid_inputs = filter(data, tokenizer, keep_prefix, keep_suffix, max_n_tokens)
         np.save(filename, invalid_ids)
         np.save(filename_inputs, invalid_inputs)
+
+    if len(invalid_ids) == 0:
+        print(f"No invalid inputs found in {args.dataset}")
+        return data, np.arange(len(data))
     filtered_data = np.delete(data, invalid_ids, axis=0)
     filtered_ids = np.delete(np.arange(len(data)), invalid_ids, axis=0)
     print(f"Filtered {args.dataset}: {len(filtered_data)}")
