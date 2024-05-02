@@ -17,9 +17,10 @@ UNABLE_TO_SWITCH = -1
 def generate_explanatory_masks(
     str_inputs: List[str], 
     shapley_scores, 
+    tokens,
     k: float, 
     tokenizer, 
-    token_id: int
+    next_token_id: int
 ) -> List[Optional[np.ndarray]]:
     """
     Generate explanatory masks based on SHAP values.
@@ -29,7 +30,7 @@ def generate_explanatory_masks(
         shapley_scores: SHAP values.
         k (float): Percentage of important indices.
         tokenizer: Tokenizer object.
-        token_id (int): Token ID.
+        next_token_id (int): Token ID.
 
     Returns:
         List: Explanatory masks.
@@ -37,7 +38,8 @@ def generate_explanatory_masks(
     masks = []
     for i, prompt in enumerate(str_inputs):
         n_token = len(tokenizer.tokenize(prompt))
-        shapley_scores_i = shapley_scores[i][:, token_id]
+        shapley_scores_i = shapley_scores[i][:, next_token_id]
+        assert n_token == len(tokens[i])
         if n_token != len(shapley_scores_i):
             masks.append(None)
         else:
@@ -190,9 +192,7 @@ def replace_token_randomly(
 
 # Function to calculate scores for the explanations
 def get_scores(
-    str_inputs: List[str], 
-    input_ids: List[int], 
-    shapley_scores, 
+    results,
     pipeline, 
     k: float, 
     token_id: int = 0
@@ -212,7 +212,7 @@ def get_scores(
         dict: Dictionary containing computed scores.
     """
     # Generate explanatory masks
-    masks = generate_explanatory_masks(str_inputs, shapley_scores, k, pipeline.tokenizer, token_id)
+    masks = generate_explanatory_masks(results["input"], results["explanation"], results["tokens"], k, pipeline.tokenizer, token_id)
 
     # Initialize lists to store predictions and probabilities
     preds_orig, probs_orig = [], []
@@ -223,16 +223,17 @@ def get_scores(
     # Initialize lists to store valid input ids and inputs
     valid_ids = []
     valid_inputs = []
+    valid_tokens = []
+    valid_token_ids = []
     
-
-    print("Number of explained instances", len(str_inputs))
-    N = len(str_inputs)
+    N = len(results["input"])
+    print("Number of explained instances", N)
 
     # Iterate through all inputs
-    for i, str_input in enumerate(str_inputs):
+    for i, str_input in enumerate(results["input"]):
         # Skip if mask is None
         if masks[i] is None:
-            print("masks[i] is None")
+            print("masks[i] is None for input", str_input, " - skipping...")
             N -= 1
             continue
         else:
@@ -257,8 +258,10 @@ def get_scores(
             preds_keep_rd.append(keep_rd[0])
             probs_keep_rd.append(keep_rd[1])
 
-            valid_ids.append(input_ids[i])
+            valid_ids.append(results["input_id"][i])
             valid_inputs.append(str_input)
+            valid_tokens.append(results["tokens"][i])
+            valid_token_ids.append(results["token_ids"][i])
 
     print("Number of explained instances after removing None masks", N)
 
@@ -292,7 +295,9 @@ def get_scores(
         "acc_at_k": acc_at_k,
         "prob_diff_at_k": prob_diff_at_k,
         "input_id": valid_ids,
-        "input": valid_inputs
+        "input": valid_inputs,
+        "tokens": valid_tokens,
+        "token_ids": valid_token_ids,
     }
 
 # Function to save scores

@@ -6,6 +6,7 @@ import pickle
 import transformers
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import dill
+import pandas as pd
 
 # Import custom modules and functions
 from metrics import get_scores, save_scores
@@ -113,9 +114,6 @@ def main(args):
     if os.path.exists(os.path.join(save_dir, filename)):
         print("Loading explanations...")
         results = pickle.load(open(os.path.join(save_dir, filename), "rb"))
-        explanations = []
-        for result in results:
-            explanations.append(result['explanation'])
     else:
         #### Explain the model ####
         # Choose appropriate explainer based on specified algorithm
@@ -162,7 +160,9 @@ def main(args):
     
     #### Evaluate the explanations ####
     # Calculate scores for explanations
-    scores = get_scores(data, data_ids, explanations, lmmodel, args.threshold)
+    results = pd.DataFrame(results)
+    print(f"Calculating scores for {len(results['input_id'])} explained instances...")
+    scores = get_scores(results, lmmodel, args.threshold)
     print("scores", scores)
     save_scores(args, scores)
 
