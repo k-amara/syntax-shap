@@ -2,7 +2,6 @@ from collections import deque
 import pandas as pd
 import re
 import spacy
-import spacy
 import textdescriptives as td
 
 class TreeNode:

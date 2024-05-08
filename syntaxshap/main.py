@@ -19,8 +19,12 @@ from utils._exceptions import InvalidAlgorithmError
 from utils._filter_data import filter_data
 from utils.transformers import parse_prefix_suffix_for_tokenizer
 
+#from huggingface_hub import login
+#login(token="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")
+
 # Define minimum required version of transformers library
 MIN_TRANSFORMERS_VERSION = "4.25.1"
+TRANSFORMERS_OFFLINE = 0
 
 # Check if the transformers library meets the minimum version requirement
 assert transformers.__version__ >= MIN_TRANSFORMERS_VERSION, f"Please upgrade transformers to version {MIN_TRANSFORMERS_VERSION} or higher."
@@ -51,7 +55,7 @@ def main(args):
         tokenizer_load = os.path.join(args.model_save_dir, args.model_name) + "/tokenizer"
         # Load Mistral model
         if device.type == "cuda":
-            model = AutoModelForCausalLM.from_pretrained(model_load, load_in_4bit=True)
+            model = AutoModelForCausalLM.from_pretrained(model_load)#, load_in_4bit=True, device_map='cuda')
         else:
             model = AutoModelForCausalLM.from_pretrained(model_load, torch_dtype=torch.float16, device_map="auto")
     else:
@@ -128,7 +132,7 @@ def main(args):
                 print("Loading LIME explainer...")
                 explainer = dill.load(open(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl"), "rb"))
             else:
-                explainer = LimeTextGeneration(lmmodel, data)
+                explainer = LimeTextGeneration(lmmodel, filtered_data)
                 with open(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl"), "wb") as file:
                     dill.dump(explainer, file)
         elif args.algorithm == "shap":
