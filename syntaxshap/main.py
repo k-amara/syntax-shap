@@ -24,7 +24,6 @@ from utils.transformers import parse_prefix_suffix_for_tokenizer
 
 # Define minimum required version of transformers library
 MIN_TRANSFORMERS_VERSION = "4.25.1"
-TRANSFORMERS_OFFLINE = 0
 
 # Check if the transformers library meets the minimum version requirement
 assert transformers.__version__ >= MIN_TRANSFORMERS_VERSION, f"Please upgrade transformers to version {MIN_TRANSFORMERS_VERSION} or higher."
@@ -55,7 +54,7 @@ def main(args):
         tokenizer_load = os.path.join(args.model_save_dir, args.model_name) + "/tokenizer"
         # Load Mistral model
         if device.type == "cuda":
-            model = AutoModelForCausalLM.from_pretrained(model_load)#, load_in_4bit=True, device_map='cuda')
+            model = AutoModelForCausalLM.from_pretrained(model_load, load_in_4bit=True, cache_dir="/cluster/scratch/kamara")#, device_map='cuda')
         else:
             model = AutoModelForCausalLM.from_pretrained(model_load, torch_dtype=torch.float16, device_map="auto")
     else:
