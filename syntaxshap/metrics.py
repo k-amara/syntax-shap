@@ -39,7 +39,7 @@ def generate_explanatory_masks(
     for i, prompt in enumerate(str_inputs):
         n_token = len(tokenizer.tokenize(prompt))
         shapley_scores_i = shapley_scores[i][:, next_token_id]
-        assert n_token == len(tokens[i])
+        assert n_token == len(shapley_scores[i])
         if n_token != len(shapley_scores_i):
             masks.append(None)
         else:
@@ -176,7 +176,7 @@ def replace_token_randomly(
     """
     # Get indices of token ids to replace
     ids_to_replace = np.where(mask == 0)[0].astype(int)
-    token_ids = tokenizer.encode(str_input)
+    token_ids = tokenizer.encode(str_input, add_special_tokens=False)
     assert  len(token_ids) == len(mask)
 
     # Replace token ids
@@ -194,7 +194,7 @@ def replace_token_randomly(
 def get_scores(
     results,
     pipeline, 
-    k: float, 
+    k: float,
     token_id: int = 0
 ) -> dict:
     """

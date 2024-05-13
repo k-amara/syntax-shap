@@ -54,11 +54,12 @@ def main(args):
         tokenizer_load = os.path.join(args.model_save_dir, args.model_name) + "/tokenizer"
         # Load Mistral model
         if device.type == "cuda":
-            model = AutoModelForCausalLM.from_pretrained(model_load, load_in_4bit=True, cache_dir="/cluster/scratch/kamara")#, device_map='cuda')
+            model = AutoModelForCausalLM.from_pretrained(model_load, load_in_4bit=True, cache_dir="/cluster/scratch/kamara/huggingface")#, device_map='cuda')
         else:
             model = AutoModelForCausalLM.from_pretrained(model_load, torch_dtype=torch.float16, device_map="auto")
     else:
         raise ValueError("Unknown model type passed: %s!" % args.model_name)
+    print("Model loaded")
     model.config.is_decoder = True
 
     # Initialize tokenizer
