@@ -11,7 +11,7 @@ import pandas as pd
 # Import custom modules and functions
 from metrics import get_scores, save_scores
 import explainers
-from explainers.other import LimeTextGeneration, Random
+from explainers.other import LimeTextGeneration, Random, SVSampling
 import models
 from datasets import generics_kb, inconsistent_negation, rocstories
 from utils import arg_parse, fix_random_seed
@@ -141,6 +141,8 @@ def main(args):
             explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, algorithm="syntax")
         elif args.algorithm == "syntax-w":
             explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, algorithm="syntax-w")
+        elif args.algorithm == "svsampling":
+            explainer = SVSampling(lmmodel, lmmodel.tokenizer)
         else:
             raise InvalidAlgorithmError("Unknown algorithm type passed: %s!" % args.algorithm)
         

@@ -5,7 +5,7 @@ import random
 import sys
 from huggingface_hub import login
 login(token="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")
-
+import models
 
 from captum.attr import (
     FeatureAblation, 
@@ -19,7 +19,7 @@ from captum.attr import (
     ProductBaselines,
 )
 
-def load_model(model_name, bnb_config):
+"""def load_model(model_name, bnb_config):
     n_gpus = torch.cuda.device_count()
     max_memory = "10000MB"
 
@@ -44,10 +44,10 @@ def create_bnb_config():
         bnb_4bit_compute_dtype=torch.bfloat16,
     )
 
-    return bnb_config
+    return bnb_config"""
 
 
-model_name = "meta-llama/Llama-2-13b-chat-hf" 
+"""model_name = "meta-llama/Llama-2-13b-chat-hf" 
 
 bnb_config = create_bnb_config()
 
@@ -60,21 +60,49 @@ model_input = tokenizer(eval_prompt, return_tensors="pt").to("cuda")
 print("model_input", model_input)
 model.eval()
 with torch.no_grad():
-    output_ids = model.generate(model_input["input_ids"], max_new_tokens=15)[0]
+    output_ids = model.generate(model_input["input_ids"], max_new_tokens=4)[0]
     response = tokenizer.decode(output_ids, skip_special_tokens=True)
-    print(response)
+    print(response)"""
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model_load = "gpt2"
+tokenizer_load = "gpt2"
+# Load GPT-2 model
+model = AutoModelForCausalLM.from_pretrained(model_load)
+model.to(device)
+# Set text generation parameters
+model.config.task_specific_params["text-generation"] = {
+    "do_sample": True,
+    "max_new_tokens": 1,
+    "temperature": 0.7,
+    "top_k": 50,
+    #"no_repeat_ngram_size": 2,
+}
+model.config.is_decoder = True
+
+# Initialize tokenizer
+tokenizer = AutoTokenizer.from_pretrained(tokenizer_load)
+tokenizer.pad_token = tokenizer.eos_token
+tokenizer.padding_side = "left"
+
+# Initialize TextGeneration model
+lmmodel = models.TextGeneration(model, tokenizer, device=device)
 
 sv = ShapleyValueSampling(model) 
 
-llm_attr = LLMAttribution(sv, tokenizer)
+llm_attr = LLMAttribution(sv,lmmodel.tokenizer)
+
+
+eval_prompt = "Dave lives in Palm Coast, FL and is a lawyer. His personal interests include"
 
 inp = TextTokenInput(
     eval_prompt, 
-    tokenizer,
+    lmmodel.tokenizer,
     skip_tokens=[1],  # skip the special token for the start of the text <s>
 )
+print("inpt", inp)
 
-target = "playing guitar, hiking, and spending time with his family."
+target = "playing guitar."
 
 attr_res = llm_attr.attribute(inp, target=target)
 
