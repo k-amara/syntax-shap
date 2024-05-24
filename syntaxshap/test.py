@@ -132,7 +132,7 @@ def main(args):
                 print("Loading LIME explainer...")
                 explainer = dill.load(open(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl"), "rb"))
             else:
-                explainer = LimeTextGeneration(lmmodel, filtered_data[:1000])
+                explainer = LimeTextGeneration(lmmodel, filtered_data)
                 with open(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl"), "wb") as file:
                     dill.dump(explainer, file)
         elif args.algorithm == "shap":
@@ -150,29 +150,7 @@ def main(args):
         
         explanations = explainer(data)
 
-        #### Save the shap values ####
-        if args.algorithm == "lime":
-            explanations = explainer._s
-        else: 
-            explanations = explanations.values
-
-        results = []
-        for i in range(len(explanations)):
-            token_ids = lmmodel.tokenizer.encode(data[i])
-            tokens = [lmmodel.tokenizer.decode(token_id) for token_id in token_ids]
-            results.append({'input_id': data_ids[i], 'input': data[i], 'tokens': tokens, 'token_ids': token_ids, 'explanation': explanations[i]})
-        with open(os.path.join(save_dir, filename), "wb") as f:
-            pickle.dump(results, f)
-
-    print("Done!")
-    
-    #### Evaluate the explanations ####
-    # Calculate scores for explanations
-    results = pd.DataFrame(results)
-    print(f"Calculating scores for {len(results['input_id'])} explained instances...")
-    scores = get_scores(results, lmmodel, args.threshold)
-    print("scores", scores)
-    save_scores(args, scores)
+   
 
 if __name__ == "__main__":
     parser, args = arg_parse()

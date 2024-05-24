@@ -93,7 +93,8 @@ sv = ShapleyValueSampling(model)
 llm_attr = LLMAttribution(sv,lmmodel.tokenizer)
 
 
-eval_prompt = "Dave lives in Palm Coast, FL and is a lawyer. His personal interests include"
+eval_prompt = "Fire Salamanders can have a very long"
+#"Dave lives in Palm Coast, FL and is a lawyer. His personal interests include"
 
 inp = TextTokenInput(
     eval_prompt, 
@@ -102,9 +103,9 @@ inp = TextTokenInput(
 )
 print("inpt", inp)
 
-target = "playing guitar."
+target = "The"
 
-attr_res = llm_attr.attribute(inp, target=target)
+attr_res = llm_attr.attribute(inp, target=None)
 
 print("attr to the output sequence:", attr_res.seq_attr.shape)  # shape(n_input_token)
 print("attr to the output tokens:", attr_res.token_attr.shape)  # shape(n_output_token, n_input_token)

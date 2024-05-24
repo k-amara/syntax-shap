@@ -4,7 +4,7 @@ import links
 from models import Model
 from utils import MaskedModel
 from captum.attr import (
-    ShapleyValueSampling,
+    FeatureAblation,
     TextTokenInput,
     LLMAttribution
 )
@@ -12,7 +12,7 @@ from captum.attr import (
 from explainers._explainer import Explainer
 
 
-class SVSampling(Explainer):
+class Ablation(Explainer):
     """ Simply returns random (normally distributed) feature attributions.
 
     This is only for benchmark comparisons. It supports both fully random attributions and random
@@ -28,8 +28,8 @@ class SVSampling(Explainer):
         for arg in call_args:
             self.__call__.__kwdefaults__[arg] = call_args[arg]
 
-        sv = ShapleyValueSampling(model_init) 
-        self.llm_attr = LLMAttribution(sv, self.tokenizer)
+        fa = FeatureAblation(model_init) 
+        self.llm_attr = LLMAttribution(fa, self.tokenizer)
 
     def explain_row(self, *row_args, max_evals, main_effects, error_bounds, batch_size, outputs, silent):
         """ Explains a single row.

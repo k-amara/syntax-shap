@@ -14,6 +14,7 @@ from utils import (
     make_masks,
     safe_isinstance
 )
+from captum._utils.common import _run_forward
 
 
 def convert_feat_to_mask(feature, m):
@@ -218,6 +219,13 @@ class SyntaxExplainer(Explainer):
         f11 = fm(~m00.reshape(1, -1))[0]
         print("target value: ", self.tokenizer.decode(f11.astype(int), skip_special_tokens=True))
 
+        # compute the correct expected value
+        m11 = np.ones(len(self.tokenizer.tokenize(row_args[0])), dtype=int)
+        outputs = fm(m11.reshape(1, -1))
+        expected_value = outputs[0]
+        target = self.tokenizer.decode(expected_value.astype(int), skip_special_tokens=True)
+
+
         if callable(self.masker.clustering):
             self._clustering = self.masker.clustering(*row_args)
             self._mask_matrix = make_masks(self._clustering)
@@ -243,7 +251,7 @@ class SyntaxExplainer(Explainer):
             dependency_dt = get_token_dependency_tree(sentence=row_args[0], tokenizer=self.masker.tokenizer)
         else:
             dependency_dt = None
-        self.compute_shapley_values(fm, self._curr_base_value, M, algorithm=self.algorithm, weighted=self.weighted, dependency_dt=dependency_dt)
+        self.compute_shapley_values(fm, self._curr_base_value, target, M, algorithm=self.algorithm, weighted=self.weighted, dependency_dt=dependency_dt)
         
         mask_shapes = []
         for s in fm.mask_shapes:
@@ -263,7 +271,7 @@ class SyntaxExplainer(Explainer):
     def __str__(self):
         return "explainers.DependencyExplainer()"
 
-    def compute_shapley_values(self, fm, f00, M, algorithm='syntax', dependency_dt=None, weighted=False):
+    def compute_shapley_values(self, fm, f00, target, M, algorithm='syntax', dependency_dt=None, weighted=False):
         
         dt_exact = feature_exact(M)
 
