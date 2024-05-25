@@ -11,7 +11,7 @@ import pandas as pd
 # Import custom modules and functions
 from metrics import get_scores, save_scores
 import explainers
-from explainers.other import LimeTextGeneration, Random, SVSampling, Ablation
+from explainers.other import LimeTextGeneration, Random, SVSampling, SVSamplingProb, Ablation
 import models
 from datasets import generics_kb, inconsistent_negation, rocstories
 from utils import arg_parse, fix_random_seed
@@ -125,6 +125,8 @@ def main(args):
             explainer = Random(lmmodel, lmmodel.tokenizer)
         elif args.algorithm == "partition":
             explainer = explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
+        elif args.algorithm == "hedge":
+            explainer = explainers.HEDGE(lmmodel, lmmodel.tokenizer, model)
         elif args.algorithm == "lime":
             explainer_save_dir = os.path.join(args.result_save_dir, f"explainer/seed_{args.seed}")
             os.makedirs(explainer_save_dir, exist_ok=True)
@@ -136,13 +138,15 @@ def main(args):
                 with open(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl"), "wb") as file:
                     dill.dump(explainer, file)
         elif args.algorithm == "shap":
-            explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, algorithm="shap")
+            explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, model, algorithm="shap")
         elif args.algorithm == "syntax":
-            explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, algorithm="syntax")
+            explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, model, algorithm="syntax")
         elif args.algorithm == "syntax-w":
-            explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, algorithm="syntax-w")
+            explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, model, algorithm="syntax-w")
         elif args.algorithm == "svsampling":
             explainer = SVSampling(lmmodel, lmmodel.tokenizer, model)
+        elif args.algorithm == "svsamplingprob":
+            explainer = SVSamplingProb(lmmodel, lmmodel.tokenizer, model)
         elif args.algorithm == "ablation":
             explainer = Ablation(lmmodel, lmmodel.tokenizer, model)
         else:

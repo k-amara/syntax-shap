@@ -14,6 +14,19 @@ from utils import (
     make_masks,
     safe_isinstance
 )
+import torch
+from torch import Tensor
+from captum._utils.common import _run_forward, _format_additional_forward_args
+from captum.attr._utils.common import (
+    _find_output_mode_and_verify,
+    _format_input_baseline,
+    _tensorize_baseline,
+)
+from captum.attr import (
+    ShapleyValueSampling,
+    TextTokenInput,
+    LLMAttribution
+)
 
 
 def convert_feat_to_mask(feature, m):
@@ -112,7 +125,7 @@ def feature_exact(M, asymmetric=False, causal_ordering=None):
 
 class SyntaxExplainer(Explainer):
 
-    def __init__(self, model, masker, algorithm='syntax', output_names=None, link=links.identity, linearize_link=True,
+    def __init__(self, model, masker, model_init, algorithm='syntax', output_names=None, link=links.identity, linearize_link=True,
                  feature_names=None, **call_args):
         """ Uses the Syntax SHAP method to explain the output of any function.
 
@@ -142,6 +155,7 @@ class SyntaxExplainer(Explainer):
         --------
        """
         self.tokenizer = masker
+        self.model_init = model_init
         super().__init__(model, masker, link=link, linearize_link=linearize_link, \
                          output_names = output_names, feature_names=feature_names)
 
@@ -166,6 +180,9 @@ class SyntaxExplainer(Explainer):
         # Define the type of Syntax SHAP
         self.algorithm = algorithm
         self.weighted = True if algorithm == 'syntax-w' else False
+        
+        sv = ShapleyValueSampling(self.model_init) 
+        self.llm_attr = LLMAttribution(sv, self.tokenizer)
 
         # handle higher dimensional tensor inputs
         if self.input_shape is not None and len(self.input_shape) > 1:
@@ -197,6 +214,20 @@ class SyntaxExplainer(Explainer):
             outputs=outputs, silent=silent
         )
 
+
+    def get_contribution(self, mask):
+        mask = np.array([int(item) for item in mask])
+        mask = mask.reshape(1,-1)
+        if not isinstance(mask, torch.Tensor):
+            mask = torch.tensor(mask)
+        inputs, baselines = mask, None
+        inputs, baselines = _format_input_baseline(inputs, baselines)
+        baselines = _tensorize_baseline(inputs, baselines)
+        eval = _run_forward(self.llm_attr._forward_func, inputs, None, self.additional_forward_args)
+        return eval
+        
+                
+        
     def explain_row(self, *row_args, max_evals, main_effects, error_bounds, batch_size, outputs, silent):
         """ Explains a single row and returns the tuple (row_values, row_expected_values, row_mask_shapes).
         """
@@ -207,16 +238,12 @@ class SyntaxExplainer(Explainer):
         mask_size_with_prefix_and_suffix = len(fm)
         M = len(self.masker.tokenizer.encode(row_args[0])) # number of tokens
         m00 = np.zeros(mask_size_with_prefix_and_suffix, dtype=bool)
-
-        f00_0 = fm(m00.reshape(1, -1), zero_index=0)[0]
-        f00_1 = fm(m00.reshape(1, -1))[0]
-        print("base value 0: ", self.tokenizer.decode(f00_0.astype(int), skip_special_tokens=True))
-        print("base value 1: ", self.tokenizer.decode(f00_1.astype(int), skip_special_tokens=True))
+        
         # if not fixed background or no base value assigned then compute base value for a row
         if self._curr_base_value is None or not getattr(self.masker, "fixed_background", False):
             self._curr_base_value = fm(m00.reshape(1, -1), zero_index=0)[0] # the zero index param tells the masked model what the baseline is
         f11 = fm(~m00.reshape(1, -1))[0]
-        print("target value: ", self.tokenizer.decode(f11.astype(int), skip_special_tokens=True))
+        target=self.tokenizer.decode(f11.astype(int), skip_special_tokens=True)
 
         if callable(self.masker.clustering):
             self._clustering = self.masker.clustering(*row_args)
@@ -237,13 +264,37 @@ class SyntaxExplainer(Explainer):
 
         self.values = np.zeros(out_shape)
         self.dvalues = np.zeros(out_shape)
+        
+        inp = TextTokenInput(
+            row_args[0], 
+            self.tokenizer,
+            #skip_tokens=[1],  # skip the special token for the start of the text <s>
+        )
+
+        if target is None:
+            # compute the correct expected value
+            mask = np.ones(len(self.tokenizer.tokenize(row_args[0])), dtype=int)
+            outputs = fm(mask.reshape(1, -1))
+            expected_value = outputs[0]
+            target = self.tokenizer.decode(expected_value.astype(int), skip_special_tokens=True)
+                
+                
+        if type(target) is str:
+            # exclude sos
+            target_tokens = self.tokenizer.encode(target)
+            target_tokens = torch.tensor(target_tokens)
+            
+        _inspect_forward=None
+        #inp texttokeninput, tensor([30458]), None)
+        self.additional_forward_args = _format_additional_forward_args((inp, target_tokens, _inspect_forward))
+        print(self.additional_forward_args)
 
         if 'syntax' in self.algorithm:
             # Build the dependency dataframe
             dependency_dt = get_token_dependency_tree(sentence=row_args[0], tokenizer=self.masker.tokenizer)
         else:
             dependency_dt = None
-        self.compute_shapley_values(fm, self._curr_base_value, M, algorithm=self.algorithm, weighted=self.weighted, dependency_dt=dependency_dt)
+        self.compute_shapley_values(M, algorithm=self.algorithm, weighted=self.weighted, dependency_dt=dependency_dt)
         
         mask_shapes = []
         for s in fm.mask_shapes:
@@ -263,7 +314,7 @@ class SyntaxExplainer(Explainer):
     def __str__(self):
         return "explainers.DependencyExplainer()"
 
-    def compute_shapley_values(self, fm, f00, M, algorithm='syntax', dependency_dt=None, weighted=False):
+    def compute_shapley_values(self, M, algorithm='syntax', dependency_dt=None, weighted=False):
         
         dt_exact = feature_exact(M)
 
@@ -295,14 +346,20 @@ class SyntaxExplainer(Explainer):
         for i in range(max_id_combination):
             combination = dt['features'][i]
             m00 = convert_feat_to_mask(combination, M)
+            eval_00 = self.get_contribution(m00)
             remaining_indices = list(set(range(M)) - set(combination))
             for ind in remaining_indices:
                 m10 = m00.copy()
                 m10[ind] = 1
-                f10 = fm(m10.reshape(1,-1))[0]
+                eval_10 = self.get_contribution(m10)
                 weight = dependency_dt[dependency_dt['token_position'] == ind]['level_weight'] if weighted else 1
-                self.dvalues[ind] += (f10-f00) * weight
+                # f11 is the target id 
+                # f00 is the baseline id
+                eval_diff = eval_10 - eval_00
+                self.dvalues[ind] += eval_diff[0, 0].item() * weight#(p11-p10-p00+pbaseline) * weight
                 count_updates[ind] += 1
 
         self.values = self.dvalues[:M]/count_updates[:, np.newaxis]
         self.values = self.values/np.sum(self.values)
+
+    
