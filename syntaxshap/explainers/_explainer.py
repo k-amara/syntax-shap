@@ -275,6 +275,7 @@ class Explainer(Serializable):
                 *row_args, max_evals=max_evals, main_effects=main_effects, error_bounds=error_bounds,
                 batch_size=batch_size, outputs=outputs, silent=silent, **kwargs
             )
+            
             values.append(row_result.get("values", None))
             output_indices.append(row_result.get("output_indices", None))
             expected_values.append(row_result.get("expected_values", None))

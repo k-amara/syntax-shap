@@ -11,7 +11,7 @@ import pandas as pd
 # Import custom modules and functions
 from metrics import get_scores, save_scores
 import explainers
-from explainers.other import LimeTextGeneration, Random, SVSampling, SVSamplingProb, Ablation
+from explainers.other import LimeTextGeneration, Random, SVSampling, SVSamplingProb, Ablation, HEDGEOrig
 import models
 from datasets import generics_kb, inconsistent_negation, rocstories
 from utils import arg_parse, fix_random_seed
@@ -61,6 +61,7 @@ def main(args):
         raise ValueError("Unknown model type passed: %s!" % args.model_name)
     print("Model loaded")
     model.config.is_decoder = True
+    
 
     # Initialize tokenizer
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_load)
@@ -86,7 +87,7 @@ def main(args):
     
     # Filter data based on tokenizer and specified prefixes/suffixes
     # filtered_data, filtered_ids = filter_data(data, lmmodel.tokenizer, args, keep_prefix, keep_suffix)
-    filtered_data, filtered_ids = filter_data(data, lmmodel.tokenizer, args, keep_prefix, keep_suffix)
+    filtered_data, filtered_ids = filter_data(data, lmmodel, args, keep_prefix, keep_suffix)
     # Get permutation indices
     if eval(args.shuffle):
         permutation_indices = np.random.permutation(len(filtered_data))
@@ -127,6 +128,8 @@ def main(args):
             explainer = explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
         elif args.algorithm == "hedge":
             explainer = explainers.HEDGE(lmmodel, lmmodel.tokenizer, model)
+        elif args.algorithm == "hedge_orig":
+            explainer = HEDGEOrig(lmmodel, lmmodel.tokenizer)
         elif args.algorithm == "lime":
             explainer_save_dir = os.path.join(args.result_save_dir, f"explainer/seed_{args.seed}")
             os.makedirs(explainer_save_dir, exist_ok=True)
@@ -164,6 +167,7 @@ def main(args):
         for i in range(len(explanations)):
             token_ids = lmmodel.tokenizer.encode(data[i])
             tokens = [lmmodel.tokenizer.decode(token_id) for token_id in token_ids]
+            assert len(explanations[i]) == len(token_ids), "Length of explanations and data do not match!"
             results.append({'input_id': data_ids[i], 'input': data[i], 'tokens': tokens, 'token_ids': token_ids, 'explanation': explanations[i]})
         with open(os.path.join(save_dir, filename), "wb") as f:
             pickle.dump(results, f)

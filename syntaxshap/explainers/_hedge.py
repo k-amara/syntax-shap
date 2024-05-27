@@ -16,7 +16,7 @@ from captum._utils.common import _run_forward, _format_additional_forward_args
 from captum.attr._utils.common import (
     _find_output_mode_and_verify,
     _format_input_baseline,
-    _tensorize_baseline,
+    _tensorize_baseline
 )
 from captum.attr import (
     ShapleyValueSampling,
@@ -75,6 +75,7 @@ class HEDGE(Explainer):
         """
         self.tokenizer = masker
         self.model_init = model_init
+        self.device = model_init.device
         super().__init__(model, masker, link=link, linearize_link=linearize_link, algorithm="partition", \
                          output_names = output_names, feature_names=feature_names)
 
@@ -145,6 +146,7 @@ class HEDGE(Explainer):
         )
         
     def get_contribution(self, mask):
+        ## returns the probability of the initial target token
         mask = np.array([int(item) for item in mask])
         mask = mask.reshape(1,-1)
         if not isinstance(mask, torch.Tensor):
@@ -154,6 +156,19 @@ class HEDGE(Explainer):
         baselines = _tensorize_baseline(inputs, baselines)
         eval = _run_forward(self.llm_attr._forward_func, inputs, None, self.additional_forward_args)
         return eval[:,0].cpu().detach().numpy()
+    
+    def _format_model_input(self, model_input):
+        """
+        Convert str to tokenized tensor
+        to make LLMAttribution work with model inputs of both
+        raw text and text token tensors
+        """
+        # return tensor(1, n_tokens)
+        if isinstance(model_input, str):
+            return self.tokenizer.encode(model_input, return_tensors="pt").to(
+                self.device
+            )
+        return model_input.to(self.device)
         
 
     def explain_row(self, *row_args, max_evals, main_effects, error_bounds, batch_size, outputs, silent, fixed_context = "auto"):
@@ -176,13 +191,7 @@ class HEDGE(Explainer):
             self._curr_base_value = fm(m00.reshape(1, -1), zero_index=0)[0] # the zero index param tells the masked model what the baseline is
         f11 = fm(~m00.reshape(1, -1))[0]
         m11 = np.ones(M, dtype=bool)
-        target=self.tokenizer.decode(f11.astype(int), skip_special_tokens=True)
-        
-        #print('prompt: ', row_args[0])
-        #print('token ids:', self.tokenizer.encode(row_args[0]))
-        #print('number of tokens: ', len(self.tokenizer.encode(row_args[0])))
-
-
+            
         if callable(self.masker.clustering):
             self._clustering = self.masker.clustering(*row_args)
             self._mask_matrix = make_masks(self._clustering)
@@ -207,19 +216,16 @@ class HEDGE(Explainer):
             row_args[0], 
             self.tokenizer,  # skip the special token for the start of the text <s>
         )
-
-        if target is None:
-            # compute the correct expected value
-            mask = np.ones(len(self.tokenizer.tokenize(row_args[0])), dtype=int)
-            outputs = fm(mask.reshape(1, -1))
-            expected_value = outputs[0]
-            target = self.tokenizer.decode(expected_value.astype(int), skip_special_tokens=True)
-                
-                
-        if type(target) is str:
-            # exclude sos
-            target_tokens = self.tokenizer.encode(target)
-            target_tokens = torch.tensor(target_tokens)
+        
+        target = ''
+        while target == '':
+            model_inp = self._format_model_input(inp.to_model_input())
+            output_tokens = self.model_init.generate(model_inp, max_new_tokens = 1, do_sample = False)
+            target_tokens = output_tokens[0][model_inp.size(1) :]
+            print('input:', row_args[0])
+            target= self.tokenizer.decode(target_tokens.detach().cpu().numpy()[0], skip_special_tokens=False)
+            print('target:', target)
+            
             
         _inspect_forward=None
         #inp texttokeninput, tensor([30458]), None)
@@ -227,6 +233,7 @@ class HEDGE(Explainer):
 
         p00 = self.get_contribution(m00)
         p11 = self.get_contribution(m11)
+         
         self.owen(fm, p00, p11, max_evals - 2, outputs, fixed_context, batch_size, silent)
 
         # if False:

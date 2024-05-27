@@ -11,7 +11,7 @@ import pandas as pd
 # Import custom modules and functions
 from metrics import get_scores, save_scores
 import explainers
-from explainers.other import LimeTextGeneration, Random, SVSampling, SVSamplingProb, Ablation
+from explainers.other import LimeTextGeneration, Random, SVSampling, SVSamplingProb, Ablation, HEDGEOrig
 import models
 from datasets import generics_kb, inconsistent_negation, rocstories
 from utils import arg_parse, fix_random_seed
@@ -73,7 +73,7 @@ def main(args):
     keep_prefix = parsed_tokenizer_dict['keep_prefix'] # check that keep_prefix is not None, value 0 or 1
     keep_suffix = parsed_tokenizer_dict['keep_suffix'] # check that keep_prefix is not None, value 0 or 1
 
-    #### Prepare the data ####
+    """#### Prepare the data ####
     # Load dataset based on argument
     if args.dataset == "negation":
         data, _ = inconsistent_negation(args.data_save_dir)
@@ -107,7 +107,7 @@ def main(args):
         data_ids = data_ids[n_min:n_max]
     else:
         print(f"Batch number is not specified. Using all {len(data)} examples.")
-    print("Length of data", len(data))
+    print("Length of data", len(data))"""
 
     #### Check if the explanations exist ####
     save_dir = os.path.join(args.result_save_dir, f'explanations/{args.model_name}/{args.dataset}/{args.algorithm}/seed_{args.seed}')
@@ -126,7 +126,9 @@ def main(args):
         elif args.algorithm == "partition":
             explainer = explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
         elif args.algorithm == "hedge":
-            explainer = explainers.HEDGE(lmmodel, lmmodel.tokenizer, model, keep_prefix=keep_prefix)
+            explainer = explainers.HEDGE(lmmodel, lmmodel.tokenizer, model)
+        elif args.algorithm == "hedge_orig":
+            explainer = HEDGEOrig(lmmodel, lmmodel.tokenizer)
         elif args.algorithm == "lime":
             explainer_save_dir = os.path.join(args.result_save_dir, f"explainer/seed_{args.seed}")
             os.makedirs(explainer_save_dir, exist_ok=True)
@@ -152,7 +154,21 @@ def main(args):
         else:
             raise InvalidAlgorithmError("Unknown algorithm type passed: %s!" % args.algorithm)
         
+        
+        data = np.array(["He soaked one too long and it broke in", "Donald hoped to achieve the power to do it on a large scale some"])
+        data_ids = np.array([1, 2])
         explanations = explainer(data)
+        
+        results = []
+        for i in range(len(explanations)):
+            if explanations[i][0]==np.nan:
+                print(f"Explanation for instance {i} is None! Skipping...")
+                continue
+            token_ids = lmmodel.tokenizer.encode(data[i])
+            tokens = [lmmodel.tokenizer.decode(token_id) for token_id in token_ids]
+            assert len(explanations[i]) == len(token_ids[i]), "Length of explanations and data do not match!"
+            results.append({'input_id': data_ids[i], 'input': data[i], 'tokens': tokens, 'token_ids': token_ids, 'explanation': explanations[i]})
+        
 
    
 

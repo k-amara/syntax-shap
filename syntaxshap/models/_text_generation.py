@@ -199,6 +199,28 @@ class TextGeneration(Model):
         logits = outputs.scores[0].detach().cpu().numpy()
         probabilities = torch.nn.functional.softmax(outputs.scores[0], dim=1).detach().cpu().numpy()
         return target_X, logits, probabilities
+    
+    def get_probs(self, inputs):
+        # check if user assigned any text generation specific kwargs
+        text_generation_params = {}
+        if self.inner_model.config.__dict__.get("task_specific_params") is not None and \
+                self.inner_model.config.task_specific_params.get("text-generation") is not None:
+            text_generation_params = self.inner_model.config.task_specific_params["text-generation"]
+            if not isinstance(text_generation_params, dict):
+                raise ValueError(
+                    "Please assign text generation params as a dictionary under task_specific_params with key 'text-generation' "
+                )
+            # remove keys that are overridden by params on the model itself
+            # (this is to mimic how precedence works for transformers pipelines)
+            for k in list(text_generation_params.keys()):
+                if hasattr(self.inner_model.config, k):
+                    del text_generation_params[k]
+        text_generation_params['max_new_tokens']=1
+        text_generation_params['do_sample']=True
+        outputs = self.inner_model.generate(**inputs, **text_generation_params, return_dict_in_generate=True, output_scores=True)
+        logits = outputs.scores[0]
+        probabilities = torch.nn.functional.softmax(outputs.scores[0], dim=1)
+        return logits, probabilities
 
     def model_generate(self, X):
         """ This function performs text generation for tensorflow and pytorch models.

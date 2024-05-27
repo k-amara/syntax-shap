@@ -40,7 +40,7 @@ def filter_invalid_inputs(data, tokenizer, keep_prefix, keep_suffix):
     invalid_inputs = np.unique(invalid_inputs)
     return invalid_ids, invalid_inputs
 
-def filter(data, tokenizer, keep_prefix, keep_suffix, max_n_tokens):
+def filter(data, lmmodel, keep_prefix, keep_suffix, max_n_tokens):
     invalid_ids = []
     invalid_inputs = []
     nlp = spacy.load("en_core_web_sm")
@@ -49,16 +49,23 @@ def filter(data, tokenizer, keep_prefix, keep_suffix, max_n_tokens):
             invalid_ids.append(id)
             invalid_inputs.append(input)
             continue
-        M = len(tokenizer.encode(input))
+        ### Check that the number of tokens is less than 15
+        M = len(lmmodel.tokenizer.encode(input))
         M -= keep_prefix
         M -= keep_suffix
         if M > max_n_tokens:
             invalid_ids.append(id)
             invalid_inputs.append(input)
             continue
+        ### Check that the number of spans is 1
         doc = nlp(input+' MASK')
         sentence_spans = list(doc.sents)
         if len(sentence_spans) > 1:
+            invalid_ids.append(id)
+            invalid_inputs.append(input)
+        ### Compute target and check that it is not empty string
+        target = lmmodel.tokenizer.decode(lmmodel(input)[0], skip_special_tokens=True)
+        if target == '':
             invalid_ids.append(id)
             invalid_inputs.append(input)
     invalid_inputs, invalid_ids = np.unique(invalid_inputs), np.unique(invalid_ids)
@@ -66,11 +73,12 @@ def filter(data, tokenizer, keep_prefix, keep_suffix, max_n_tokens):
 
 
 
-def filter_data(data, tokenizer, args, keep_prefix=0, keep_suffix=0, max_n_tokens=15):
+def filter_data(data, lmmodel, args, keep_prefix=0, keep_suffix=0, max_n_tokens=15):
     """
-    Filter data on 2 criteria and remove inputs:
+    Filter data on 3 criteria and remove inputs:
         - If the input contains more than 15 tokens
         - If the input contains more than 1 sentence span (according to spaCy dependency tree)
+        - If the target is an empty string
     """
     filter_ids_path = os.path.join(args.data_save_dir, f"{args.dataset}/seed_{args.seed}")
     os.makedirs(filter_ids_path, exist_ok=True)
@@ -79,7 +87,7 @@ def filter_data(data, tokenizer, args, keep_prefix=0, keep_suffix=0, max_n_token
     if os.path.exists(filename):
         invalid_ids = np.load(filename, allow_pickle=True)
     else:
-        invalid_ids, invalid_inputs = filter(data, tokenizer, keep_prefix, keep_suffix, max_n_tokens)
+        invalid_ids, invalid_inputs = filter(data, lmmodel, keep_prefix, keep_suffix, max_n_tokens)
         np.save(filename, invalid_ids)
         np.save(filename_inputs, invalid_inputs)
 
