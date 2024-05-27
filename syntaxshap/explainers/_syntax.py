@@ -283,15 +283,19 @@ class SyntaxExplainer(Explainer):
             #skip_tokens=[1],  # skip the special token for the start of the text <s>
         )
         target = ''
+        k = 0
         while target == '':
             model_inp = self._format_model_input(inp.to_model_input())
-            output_tokens = self.model_init.generate(model_inp, max_new_tokens = 1, do_sample = False)
-            target_tokens = output_tokens[0][model_inp.size(1) :]
-            print('input:', row_args[0])
+            output_tokens = self.model_init.generate(model_inp, max_new_tokens = k+1, do_sample = False)
+            target_tokens = output_tokens[0][model_inp.size(1)+k :]
+            print('target_tokens:', target_tokens)
             target= self.tokenizer.decode(target_tokens.detach().cpu().numpy()[0], skip_special_tokens=False)
+            if k>1:
+                print('input:', row_args[0])
+                print('target_tokens:', target_tokens)
             print('target:', target)
+            k += 1
             
-        
         _inspect_forward=None
         #inp texttokeninput, tensor([30458]), None)
         self.additional_forward_args = _format_additional_forward_args((inp, target_tokens, _inspect_forward))
