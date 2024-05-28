@@ -87,7 +87,7 @@ def main(args):
     
     # Filter data based on tokenizer and specified prefixes/suffixes
     # filtered_data, filtered_ids = filter_data(data, lmmodel.tokenizer, args, keep_prefix, keep_suffix)
-    filtered_data, filtered_ids = filter_data(data, lmmodel, args, keep_prefix, keep_suffix)
+    filtered_data, filtered_ids = filter_data(data, tokenizer, args, keep_prefix, keep_suffix)
     # Get permutation indices
     if eval(args.shuffle):
         permutation_indices = np.random.permutation(len(filtered_data))
