@@ -20,6 +20,8 @@ class Ablation(Explainer):
     """
     def __init__(self, model, masker, model_init, link=links.identity, feature_names=None, linearize_link=True, constant=False, **call_args):
         self.tokenizer = masker
+        self.model_init = model_init
+        self.device = model_init.device
         super().__init__(model, masker, link=link, linearize_link=linearize_link, feature_names=feature_names)
 
         if not isinstance(model, Model):
@@ -28,9 +30,23 @@ class Ablation(Explainer):
         for arg in call_args:
             self.__call__.__kwdefaults__[arg] = call_args[arg]
 
-        fa = FeatureAblation(model_init) 
+        fa = FeatureAblation(self.model_init) 
         self.llm_attr = LLMAttribution(fa, self.tokenizer)
 
+
+    def _format_model_input(self, model_input):
+        """
+        Convert str to tokenized tensor
+        to make LLMAttribution work with model inputs of both
+        raw text and text token tensors
+        """
+        # return tensor(1, n_tokens)
+        if isinstance(model_input, str):
+            return self.tokenizer.encode(model_input, return_tensors="pt").to(
+                self.device
+            )
+        return model_input.to(self.device)
+    
     def explain_row(self, *row_args, max_evals, main_effects, error_bounds, batch_size, outputs, silent):
         """ Explains a single row.
         """
@@ -48,21 +64,29 @@ class Ablation(Explainer):
             else:
                 raise NotImplementedError("The masker passed has a .clustering attribute that is not yet supported by the Permutation explainer!")
 
-        # compute the correct expected value
-        mask = np.ones(len(self.tokenizer.tokenize(row_args[0])), dtype=int)
-        outputs = fm(mask.reshape(1, -1))
-        expected_value = outputs[0]
-        target = self.tokenizer.decode(expected_value.astype(int), skip_special_tokens=True)
-
-        if target == " ":
-            target = None
-            print("Target is a space, we replace it with None - the default SVSampling computes the target itself")
-
+        
         inp = TextTokenInput(
             row_args[0], 
             self.tokenizer,
             skip_tokens=[1],  # skip the special token for the start of the text <s>
         )
+        
+        target = ''
+        k = 0
+        while target == '':
+            print('model_inp:', inp.to_model_input())
+            model_inp = self._format_model_input(inp.to_model_input())
+            output_tokens = self.model_init.generate(model_inp, max_new_tokens = k+1, do_sample = False)
+            target_tokens = output_tokens[0][model_inp.size(1)+k :]
+            print('target_tokens:', target_tokens)
+            expected_value = target_tokens.detach().cpu().numpy()[0]
+            target= self.tokenizer.decode(expected_value.astype(int), skip_special_tokens=True)
+            if k>1:
+                print('input:', row_args[0])
+                print('target_tokens:', target_tokens)
+            print('target:', target)
+            k += 1
+            
         attr_res = self.llm_attr.attribute(inp, target=target)
         row_values = attr_res.seq_attr.detach().cpu().numpy()   
 
