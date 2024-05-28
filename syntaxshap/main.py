@@ -11,7 +11,7 @@ import pandas as pd
 # Import custom modules and functions
 from metrics import get_scores, save_scores
 import explainers
-from explainers.other import LimeTextGeneration, Random, SVSampling, SVSamplingProb, Ablation, HEDGEOrig
+from explainers.other import LimeTextGeneration, Random, SVSampling, Ablation, HEDGEOrig
 import models
 from datasets import generics_kb, inconsistent_negation, rocstories
 from utils import arg_parse, fix_random_seed
@@ -148,8 +148,6 @@ def main(args):
             explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, model, algorithm="syntax-w")
         elif args.algorithm == "svsampling":
             explainer = SVSampling(lmmodel, lmmodel.tokenizer, model)
-        elif args.algorithm == "svsamplingprob":
-            explainer = SVSamplingProb(lmmodel, lmmodel.tokenizer, model)
         elif args.algorithm == "ablation":
             explainer = Ablation(lmmodel, lmmodel.tokenizer, model)
         else:
