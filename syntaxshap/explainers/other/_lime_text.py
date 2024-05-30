@@ -91,6 +91,7 @@ class LimeTextGeneration(Explainer):
         attributions = []
         for i in range(X.shape[0]):
             # Explain instance
+            tokens = self.model.tokenizer.encode(X[i])
             exp = explainer.explain_instance(X[i], c.predict_proba, num_features=20)
             words_order = X[i].split()
             exp_dict = dict(exp.as_list())

@@ -9,6 +9,8 @@ import pandas as pd
 import scipy.special
 import sklearn
 
+from transformers import AutoTokenizer
+
 import_errors = {}
 
 def assert_import(package_name):
@@ -335,3 +337,28 @@ def suppress_stderr():
             yield
         finally:
             sys.stderr = old_stderr
+
+
+
+
+def convert_to_token_expl(sentence, word_expl):
+    
+    # Initialize tokenizer
+    tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "left"
+
+    words = sentence.split()
+    assert len(word_expl) == len(words)
+    token_ids = tokenizer(sentence)['input_ids']
+    k = 0
+    token_expl = []
+    for i in range(len(words)):
+        word = words[i]
+        word_len = 0
+        while word_len < len(word):
+            decoded_word = tokenizer.decode([token_ids[k]]).replace(' ','')
+            word_len += len(decoded_word)
+            token_expl.append(word_expl[i])
+            k += 1
+    return token_expl
