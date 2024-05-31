@@ -363,5 +363,5 @@ def convert_to_token_expl(sentence, word_expl, tokenizer, keep_prefix=0):
             word_len += len(decoded_word)
             token_expl.append(word_expl[i])
             k += 1
-    len('token_expl:', len(token_expl))
+    print('token_expl:', len(token_expl))
     return token_expl
