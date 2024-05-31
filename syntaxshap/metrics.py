@@ -38,7 +38,8 @@ def generate_explanatory_masks(
     masks = []
     for i, prompt in enumerate(str_inputs):
         n_token = len(tokenizer.tokenize(prompt))
-        shapley_scores_i = shapley_scores[i][:, next_token_id]
+        shapley_scores_i = np.array([x.tolist() for x in shapley_scores[i]])
+        shapley_scores_i = shapley_scores_i[:, next_token_id]
         assert n_token == len(shapley_scores[i])
         if n_token != len(shapley_scores_i):
             masks.append(None)

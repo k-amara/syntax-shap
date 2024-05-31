@@ -134,13 +134,14 @@ def main(args):
         elif args.algorithm == "lime":
             explainer_save_dir = os.path.join(args.result_save_dir, f"explainer/seed_{args.seed}")
             os.makedirs(explainer_save_dir, exist_ok=True)
-            if os.path.exists(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl")):
-                print("Loading LIME explainer...")
-                explainer = dill.load(open(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl"), "rb"))
-            else:
-                explainer = LimeTextGeneration(lmmodel, filtered_data[:1000])
-                with open(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl"), "wb") as file:
-                    dill.dump(explainer, file)
+            explainer = LimeTextGeneration(lmmodel, filtered_data[:1000])
+            #if os.path.exists(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl")):
+                #print("Loading LIME explainer...")
+                #explainer = dill.load(open(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl"), "rb"))
+            #else:
+                #explainer = LimeTextGeneration(lmmodel, filtered_data[:1000])
+                #with open(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl"), "wb") as file:
+                    #dill.dump(explainer, file)
         elif args.algorithm == "shap":
             explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, model, algorithm="shap")
         elif args.algorithm == "syntax":
@@ -167,10 +168,15 @@ def main(args):
             token_ids = lmmodel.tokenizer.encode(data[i])
             tokens = [lmmodel.tokenizer.decode(token_id) for token_id in token_ids]
             if args.algorithm == "lime":
-                token_explanation = convert_to_token_expl(data[i], explanations[i])
+                print('data[i]', data[i])
+                print('explanations[i]', explanations[i])
+                token_explanation = convert_to_token_expl(data[i], explanations[i], lmmodel.tokenizer, keep_prefix=keep_prefix)
+                print("length of token_ids", len(token_ids))
+                print("length of token_explanation", len(token_explanation))
+                print("token_explanation", token_explanation)
             else:
                 token_explanation = explanations[i]
-            assert len(explanations[i]) + keep_prefix == len(token_ids), "Length of explanations and data do not match!"
+            assert len(token_explanation) + keep_prefix == len(token_ids), "Length of explanations and data do not match!"
             results.append({'input_id': data_ids[i], 'input': data[i], 'tokens': tokens, 'token_ids': token_ids, 'explanation': token_explanation})
         with open(os.path.join(save_dir, filename), "wb") as f:
             pickle.dump(results, f)

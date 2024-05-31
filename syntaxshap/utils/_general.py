@@ -341,18 +341,20 @@ def suppress_stderr():
 
 
 
-def convert_to_token_expl(sentence, word_expl):
-    
-    # Initialize tokenizer
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
-    tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = "left"
+def convert_to_token_expl(sentence, word_expl, tokenizer, keep_prefix=0):
 
     words = sentence.split()
     assert len(word_expl) == len(words)
     token_ids = tokenizer(sentence)['input_ids']
+    print('len token ids:', len(token_ids))
+    print('len words:', len(words))
     k = 0
     token_expl = []
+    if (keep_prefix==1) and (token_ids[0] == 1):
+        print('The model has a <s> token at the beginning of the sentence. This token will be given lowest importance.')
+        print('word_expl:', word_expl)
+        base = min(word_expl, key=lambda x: x[0])
+        token_expl.append(base)
     for i in range(len(words)):
         word = words[i]
         word_len = 0
@@ -361,4 +363,5 @@ def convert_to_token_expl(sentence, word_expl):
             word_len += len(decoded_word)
             token_expl.append(word_expl[i])
             k += 1
+    len('token_expl:', len(token_expl))
     return token_expl
