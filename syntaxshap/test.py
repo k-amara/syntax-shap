@@ -18,6 +18,7 @@ from utils import arg_parse, fix_random_seed
 from utils._exceptions import InvalidAlgorithmError
 from utils._filter_data import filter_data
 from utils.transformers import parse_prefix_suffix_for_tokenizer
+from utils._general import convert_to_token_expl
 
 #from huggingface_hub import login
 #login(token="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")
@@ -98,6 +99,8 @@ def main(args):
     data = filtered_data[permutation_indices] # check that permutation indices are in the range of 0 and len(data)
     data_ids = filtered_ids[permutation_indices]
 
+    data = [data[0], data[13], data[83]]
+    data_ids = [data_ids[0], data_ids[13], data_ids[83]]
     # Limit data to specified batch size and number
     if args.num_batch is not None:
         assert args.num_batch * args.batch_size < len(data), "Batch number is too large!"
@@ -156,15 +159,24 @@ def main(args):
     results = []
     for i in range(len(explanations)):
         token_ids = lmmodel.tokenizer.encode(data[i])
-        print('data[i]: ', data[i])
-        print('number of tokens: ', len(token_ids))
-        print('explanations[i]: ', explanations[i])
-        print('length of explanation: ', len(explanations[i]))
         tokens = [lmmodel.tokenizer.decode(token_id) for token_id in token_ids]
-        assert len(explanations[i]) + keep_prefix == len(token_ids), "Length of explanations and data do not match!"
-        results.append({'input_id': data_ids[i], 'input': data[i], 'tokens': tokens, 'token_ids': token_ids, 'explanation': explanations[i]})
-    
+        if args.algorithm == "lime":
+            token_explanation = convert_to_token_expl(data[i], explanations[i], lmmodel.tokenizer, keep_prefix=keep_prefix)
+        else:
+            token_explanation = explanations[i]
+        assert len(token_explanation) + keep_prefix == len(token_ids), "Length of explanations and data do not match!"
+        results.append({'input_id': data_ids[i], 'input': data[i], 'tokens': tokens, 'token_ids': token_ids, 'explanation': token_explanation})
 
+
+    print("Done!")
+    
+    #### Evaluate the explanations ####
+    # Calculate scores for explanations
+    results = pd.DataFrame(results)
+    print(f"Calculating scores for {len(results['input_id'])} explained instances...")
+    scores = get_scores(results, lmmodel, args.threshold)
+    print("scores", scores)
+    
 if __name__ == "__main__":
     parser, args = arg_parse()
 

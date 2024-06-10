@@ -153,6 +153,8 @@ def get_token_dependency_tree(sentence, tokenizer):
 
     tree_df = spacy_dependency_tree(sentence)
     dependency_tree = pd.merge(merged_df, tree_df, on=['word', 'word_position'], how='inner')
+    print('sentence: ', sentence)
+    print(f"{df_tokens}\n{pos_token_to_word}\n")
     return dependency_tree
 
 def compute_dependency_distance(string_list):
