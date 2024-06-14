@@ -126,7 +126,8 @@ def compute_position_mapping(sentence, tokenizer):
         word_len = 0
         while word_len < len(word):
             decoded_word = tokenizer.decode([token_ids[k]]).replace(' ','')
-            word_len += len(decoded_word)
+            if not (decoded_word.startswith('<') and decoded_word.endswith('>')):
+                word_len += len(decoded_word)
             pos_token_to_word[k] = i
             k += 1
 
@@ -153,8 +154,6 @@ def get_token_dependency_tree(sentence, tokenizer):
 
     tree_df = spacy_dependency_tree(sentence)
     dependency_tree = pd.merge(merged_df, tree_df, on=['word', 'word_position'], how='inner')
-    print('sentence: ', sentence)
-    print(f"{df_tokens}\n{pos_token_to_word}\n")
     return dependency_tree
 
 def compute_dependency_distance(string_list):
