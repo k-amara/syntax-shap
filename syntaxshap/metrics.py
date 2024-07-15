@@ -13,7 +13,7 @@ from maskers import Text
 UNABLE_TO_SWITCH = -1
 
 
-def soft_replace(str_input, attr_scores, orig, samples_i, tokenizer):
+def soft_replace(str_input, token_ids, attr_scores, prob_orig, ranks_i, pipeline, similarity=1):
     """
     We compute the sample associated to the token to be replaced here - input by input
     
@@ -23,7 +23,21 @@ def soft_replace(str_input, attr_scores, orig, samples_i, tokenizer):
     ranks_i: each token has a list of ranked embeddings (n_token * vocabulary_size)
             Those ranks are computed in the similarity search given the context fixed of the sentence!
     """
-    return 
+    repl_fid = []
+    # size of vocabulary: ranks_i.shape[-1]
+    token_ids = pipeline.tokenizer.encode(str_input)
+    repl_token_ids = token_ids.copy()
+    for i, token_id in enumerate(token_ids):
+        repl_rank = np.fix((1 - attr_scores[i]) * ranks_i.shape[-1]/similarity - 1e-5).astype(int)
+        # find which token is ranked repl_rank
+        new_token_id = np.where(ranks_i[token_id]==repl_rank)[0][0]
+        repl_token_ids[i] = new_token_id
+        new_str_input = pipeline.tokenizer.decode(repl_token_ids)
+        # Check if the new string length is within token length limits
+        # L = len(tokenizer.encode(new_str_input, add_special_tokens=False))
+        _, prob = run_model([new_str_input], None, pipeline)
+        repl_fid.append(prob - prob_orig)
+    return np.mean(repl_fid)
 
 
 # Explanatory Masks Generation -- Hard masking
@@ -280,9 +294,11 @@ def get_scores(
             # Aggregate the differences for all tokens
             # Condition: prob_orig is computed
             n_token = len(pipeline.tokenizer.tokenize(str_input))
+            tokens = results["tokens"]
+            assert n_token == len(tokens)
             attr_scores = results["explanation"][i]
             assert n_token == attr_scores
-            soft_fid_i = soft_replace(str_input, attr_scores, orig, pipeline.tokenizer)
+            soft_fid_i = soft_replace(str_input, tokens, attr_scores, orig[1], pipeline.tokenizer)
             list_soft_fid.append(sorted(soft_fid_i))
 
             valid_ids.append(results["input_id"][i])
