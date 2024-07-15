@@ -13,7 +13,20 @@ from maskers import Text
 UNABLE_TO_SWITCH = -1
 
 
-# Explanatory Masks Generation
+def soft_replace(str_input, attr_scores, orig, samples_i, tokenizer):
+    """
+    We compute the sample associated to the token to be replaced here - input by input
+    
+    str_input: the string input sentence
+    attr_scores: the soft mask or scalar values between 0 and 1 (normalization is done)
+    orig: prediction, probability given the full input
+    ranks_i: each token has a list of ranked embeddings (n_token * vocabulary_size)
+            Those ranks are computed in the similarity search given the context fixed of the sentence!
+    """
+    return 
+
+
+# Explanatory Masks Generation -- Hard masking
 def generate_explanatory_masks(
     str_inputs: List[str], 
     shapley_scores, 
@@ -227,6 +240,8 @@ def get_scores(
     valid_tokens = []
     valid_token_ids = []
     
+    list_soft_fid = []
+    
     N = len(results["input"])
     print("Number of explained instances", N)
 
@@ -258,6 +273,17 @@ def get_scores(
             keep_rd = run_model([new_str_input], None, pipeline)
             preds_keep_rd.append(keep_rd[0])
             probs_keep_rd.append(keep_rd[1])
+            
+            # Iterate over each token 
+            # For each token, replace each token with a weighted repl one and mask is None
+            # Compute the prob for each new input and compute the difference with prob_orig
+            # Aggregate the differences for all tokens
+            # Condition: prob_orig is computed
+            n_token = len(pipeline.tokenizer.tokenize(str_input))
+            attr_scores = results["explanation"][i]
+            assert n_token == attr_scores
+            soft_fid_i = soft_replace(str_input, attr_scores, orig, pipeline.tokenizer)
+            list_soft_fid.append(sorted(soft_fid_i))
 
             valid_ids.append(results["input_id"][i])
             valid_inputs.append(str_input)
@@ -287,8 +313,11 @@ def get_scores(
     # Calculate accuracy at k and probability difference at k
     acc_at_k = compute_acc_at_k(probs_keep, probs_orig, k=10)
     prob_diff_at_k = compute_prob_diff_at_k(probs_keep, probs_orig, k=10)
+    
+    soft_fid = np.mean(list_soft_fid)
 
     return {
+        "soft_fid": soft_fid,
         "fid_keep_rd": fid_keep_rd,
         "fid_keep": fid_keep,
         "fid_rmv": fid_rmv,
