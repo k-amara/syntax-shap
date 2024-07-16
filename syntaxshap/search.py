@@ -32,6 +32,7 @@ class RankSearch():
         
         ranks_sentence_id = np.zeros((num_query_token, size_voc), dtype=np.int32)
         for i, token_id in enumerate(query_token_ids):
+            index = faiss.index_factory(d, "Flat", faiss.METRIC_INNER_PRODUCT)
             embs = embeddings[i]
             query_emb = query_embeddings[i]
             faiss.normalize_L2(embs)
