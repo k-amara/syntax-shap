@@ -2,15 +2,20 @@
 import faiss
 import numpy as np
 import time
-from utils._general import get_embedding_mask
+import os
+import pickle as pkl
 
 class RankSearch():
 
-    def __init__(self, tokenizer, padding_length, seed, device):
-        self.seed = seed
+    def __init__(self, tokenizer, args):
+        self.seed = args.seed
         self.tokenizer = tokenizer
-        self.padding_length = padding_length
-        self.device = device
+        self.device = args.device
+        self.ranks_dir = os.path.join(args.result_save_dir, "ranks")
+        
+    def save_ranks(self, ranks, sentence_id):
+        with open(os.path.join(self.hidden_states_dir, f"ranks_sentence_{sentence_id}.pkl"), "wb") as f:
+            pkl.dump(ranks, f)
 
 
     def __call__(self, embeddings, query_token_ids, sentence_id, args):
@@ -27,7 +32,7 @@ class RankSearch():
 
         for i, token_id in enumerate(query_token_ids):
             # Extract the embedding for the given token_id
-           query_embeddings[i] = embeddings[i, token_id, :]
+            query_embeddings[i] = embeddings[i, token_id, :]
         query_embeddings = query_embeddings.detach().cpu().numpy()
         
         ranks_sentence_id = np.zeros((num_query_token, size_voc), dtype=np.int32)
@@ -40,5 +45,6 @@ class RankSearch():
             index.add(embs)
             ranks_sentence_id[i] = index.search(query_emb, size_voc)[1].astype(np.int32)
         print(ranks_sentence_id.shape)
+        self.save_ranks(ranks_sentence_id, sentence_id)
         
         return ranks_sentence_id

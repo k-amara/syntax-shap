@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import random
 import os
-import pickle
+import pickle as pkl
 from typing import List, Optional, Tuple, Union
 
 import links
@@ -12,8 +12,10 @@ from maskers import Text
 # Constants
 UNABLE_TO_SWITCH = -1
 
+def remove_special_tokens(token_ids, special_tokens):
+    pass 
 
-def soft_replace(str_input, token_ids, attr_scores, prob_orig, ranks_i, pipeline, similarity=1):
+def soft_replace(sentence_id, token_ids, attr_scores, prob_orig, ranks_i, pipeline, args, similarity=1):
     """
     We compute the sample associated to the token to be replaced here - input by input
     
@@ -24,14 +26,21 @@ def soft_replace(str_input, token_ids, attr_scores, prob_orig, ranks_i, pipeline
             Those ranks are computed in the similarity search given the context fixed of the sentence!
     """
     repl_fid = []
+    
+    # Load the ranks for the sentence with sentence_id
+    with open(os.path.join(args.result_save_dir, f"embeddings/ranks_{sentence_id}.pkl"), "rb") as f:
+        ranks_i = pkl.load(f)
     # size of vocabulary: ranks_i.shape[-1]
-    token_ids = pipeline.tokenizer.encode(str_input)
-    repl_token_ids = token_ids.copy()
-    for i, token_id in enumerate(token_ids):
-        repl_rank = np.fix((1 - attr_scores[i]) * ranks_i.shape[-1]/similarity - 1e-5).astype(int)
+    assert pipeline.tokenizer.vocab_size == ranks_i.shape[-1]
+    
+    for k, token_id in enumerate(token_ids):
+        
+        repl_token_ids = token_ids.copy()
+        
+        repl_rank = np.fix((1 - attr_scores[k]) * ranks_i.shape[-1]/similarity - 1e-5).astype(int)
         # find which token is ranked repl_rank
-        new_token_id = np.where(ranks_i[token_id]==repl_rank)[0][0]
-        repl_token_ids[i] = new_token_id
+        new_token_id = np.where(ranks_i[k]==repl_rank)[0][0]
+        repl_token_ids[k] = new_token_id
         new_str_input = pipeline.tokenizer.decode(repl_token_ids)
         # Check if the new string length is within token length limits
         # L = len(tokenizer.encode(new_str_input, add_special_tokens=False))
@@ -294,11 +303,11 @@ def get_scores(
             # Aggregate the differences for all tokens
             # Condition: prob_orig is computed
             n_token = len(pipeline.tokenizer.tokenize(str_input))
-            tokens = results["tokens"]
+            input_id, tokens = results["input_id"], results["tokens"]
             assert n_token == len(tokens)
             attr_scores = results["explanation"][i]
             assert n_token == attr_scores
-            soft_fid_i = soft_replace(str_input, tokens, attr_scores, orig[1], pipeline.tokenizer)
+            soft_fid_i = soft_replace(input_id, tokens, attr_scores, orig[1], pipeline.tokenizer)
             list_soft_fid.append(sorted(soft_fid_i))
 
             valid_ids.append(results["input_id"][i])
