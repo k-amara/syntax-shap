@@ -14,6 +14,7 @@ STORAGE = "/cluster/work/zhang/kamara/syntax-shap/"
 #STORAGE = "/Users/kenzaamara/GithubProjects/syntax-shap/"
 DATA_DIR = CKPT_ROOT + "data/"
 MODEL_DIR = STORAGE + "models/"
+HIDDEN_STATE_DIR = STORAGE + "hidden_states/"
 FIG_DIR = CKPT_ROOT + "figures/"
 RESULT_DIR = STORAGE + "results/"
 
@@ -50,6 +51,10 @@ def arg_parse():
         default=MODEL_DIR,
     )
 
+    parser.add_argument(
+        "--hidden_states_dir", type=str, default=HIDDEN_STATES_DIR
+    )
+    
     parser.add_argument(
         "--result_save_dir",
         help="Directory where results are saved",
@@ -97,6 +102,10 @@ def arg_parse():
         help="The type of shapley value algorithm",
         type=str,
         default="syntax", choices=["random", "lime", "partition", "hedge", "shap", "syntax", "syntax-w", "svsampling", "ablation", "hedge_orig"]
+    )
+    
+    parser.add_argument(
+        "--embedding_layer", type=str, default="lower", choices=["upper", "lower"]
     )
 
     parser.add_argument(
