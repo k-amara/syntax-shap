@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import random
 import os
-import pickle as pkl
+import pkl as pkl
 from typing import List, Optional, Tuple, Union
 
 import links
@@ -53,7 +53,6 @@ def soft_replace(sentence_id, token_ids, attr_scores, prob_orig, ranks_i, pipeli
 def generate_explanatory_masks(
     str_inputs: List[str], 
     shapley_scores, 
-    tokens,
     k: float, 
     tokenizer, 
     next_token_id: int
@@ -249,7 +248,7 @@ def get_scores(
         dict: Dictionary containing computed scores.
     """
     # Generate explanatory masks
-    masks = generate_explanatory_masks(results["input"], results["explanation"], results["tokens"], k, pipeline.tokenizer, token_id)
+    masks = generate_explanatory_masks(results["input"], results["explanation"], k, pipeline.tokenizer, token_id)
 
     # Initialize lists to store predictions and probabilities
     preds_orig, probs_orig = [], []
@@ -371,6 +370,6 @@ def save_scores(args, scores):
     filename += f"{args.dataset}_{args.model_name}_{args.algorithm}_{args.seed}_{args.threshold}.pkl"
     print(f"Saving scores to {os.path.join(save_dir, filename)}")
     with open(os.path.join(save_dir, filename), "wb") as f:
-        pickle.dump(scores, f)
+        pkl.dump(scores, f)
 
     
