@@ -66,3 +66,5 @@ def replace_token(input_ids, k, vocab_size, special_tokens=[1]):
         replaced_input_ids.append(input_ids)
     # Remove special tokens 
     return replaced_input_ids[~special_tokens]
+
+

@@ -73,7 +73,7 @@ def filter(data, tokenizer, keep_prefix, keep_suffix, max_n_tokens):
 
 
 
-def filter_data(data, tokenizer, args, keep_prefix=0, keep_suffix=0, max_n_tokens=15):
+def filter_data(data, tokenizer, args, max_n_tokens=15):
     """
     Filter data on 3 criteria and remove inputs:
         - If the input contains more than 15 tokens
@@ -87,7 +87,7 @@ def filter_data(data, tokenizer, args, keep_prefix=0, keep_suffix=0, max_n_token
     if os.path.exists(filename):
         invalid_ids = np.load(filename, allow_pickle=True)
     else:
-        invalid_ids, invalid_inputs = filter(data, tokenizer, keep_prefix, keep_suffix, max_n_tokens)
+        invalid_ids, invalid_inputs = filter(data, tokenizer, args.keep_prefix, args.keep_suffix, max_n_tokens)
         np.save(filename, invalid_ids)
         np.save(filename_inputs, invalid_inputs)
 

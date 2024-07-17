@@ -2,7 +2,7 @@
 import os
 import numpy as np
 import torch
-import pickle
+import pickle as pkl
 import transformers
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import dill
@@ -29,12 +29,8 @@ MIN_TRANSFORMERS_VERSION = "4.25.1"
 # Check if the transformers library meets the minimum version requirement
 assert transformers.__version__ >= MIN_TRANSFORMERS_VERSION, f"Please upgrade transformers to version {MIN_TRANSFORMERS_VERSION} or higher."
 
-def main(args):
-    # Set random seed
-    fix_random_seed(args.seed)
-    # Determine device (CPU or GPU)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+def load_model(device, args):
     #### Load the model ####
     if args.model_name == "gpt2":
         model_load = args.model_name
@@ -63,19 +59,14 @@ def main(args):
     print("Model loaded")
     model.config.is_decoder = True
     
-
     # Initialize tokenizer
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_load)
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "left"
-    
-    # Initialize TextGeneration model
-    lmmodel = models.TextGeneration(model, tokenizer, device=device)
-    parsed_tokenizer_dict = parse_prefix_suffix_for_tokenizer(lmmodel.tokenizer)
-    keep_prefix = parsed_tokenizer_dict['keep_prefix'] # check that keep_prefix is not None, value 0 or 1
-    keep_suffix = parsed_tokenizer_dict['keep_suffix'] # check that keep_prefix is not None, value 0 or 1
+    return model, tokenizer
 
-    #### Prepare the data ####
+
+def load_data(tokenizer, args):
     # Load dataset based on argument
     if args.dataset == "negation":
         data, _ = inconsistent_negation(args.data_save_dir)
@@ -87,8 +78,8 @@ def main(args):
         raise ValueError("Unknown dataset type passed: %s!" % args.dataset)
     
     # Filter data based on tokenizer and specified prefixes/suffixes
-    # filtered_data, filtered_ids = filter_data(data, lmmodel.tokenizer, args, keep_prefix, keep_suffix)
-    filtered_data, filtered_ids = filter_data(data, tokenizer, args, keep_prefix, keep_suffix)
+    # filtered_data, filtered_ids = filter_data(data, lmmodel.tokenizer, args)
+    filtered_data, filtered_ids = filter_data(data, tokenizer, args)
     # Get permutation indices
     if eval(args.shuffle):
         permutation_indices = np.random.permutation(len(filtered_data))
@@ -109,71 +100,108 @@ def main(args):
         data_ids = data_ids[n_min:n_max]
     else:
         print(f"Batch number is not specified. Using all {len(data)} examples.")
-    print("Length of data", len(data))
+    return data, data_ids
 
-    #### Check if the explanations exist ####
+
+def compute_explanations(lmmodel, model, data, data_ids, filtered_data, args):
+    #### Explain the model ####
+    # Choose appropriate explainer based on specified algorithm
+    if args.algorithm == "random":
+        explainer = Random(lmmodel, lmmodel.tokenizer)
+    elif args.algorithm == "partition":
+        explainer = explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
+    elif args.algorithm == "hedge":
+        explainer = explainers.HEDGE(lmmodel, lmmodel.tokenizer, model)
+    elif args.algorithm == "hedge_orig":
+        explainer = HEDGEOrig(lmmodel, lmmodel.tokenizer)
+    elif args.algorithm == "lime":
+        explainer_save_dir = os.path.join(args.result_save_dir, f"explainer/seed_{args.seed}")
+        os.makedirs(explainer_save_dir, exist_ok=True)
+        if os.path.exists(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl")):
+            print("Loading LIME explainer...")
+            explainer = dill.load(open(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl"), "rb"))
+        else:
+            explainer = LimeTextGeneration(lmmodel, filtered_data[:1000])
+            with open(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl"), "wb") as file:
+                dill.dump(explainer, file)
+    elif args.algorithm == "shap":
+        explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, model, algorithm="shap")
+    elif args.algorithm == "syntax":
+        explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, model, algorithm="syntax")
+    elif args.algorithm == "syntax-w":
+        explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, model, algorithm="syntax-w")
+    elif args.algorithm == "svsampling":
+        explainer = SVSampling(lmmodel, lmmodel.tokenizer, model)
+    elif args.algorithm == "ablation":
+        explainer = Ablation(lmmodel, lmmodel.tokenizer, model)
+    else:
+        raise InvalidAlgorithmError("Unknown algorithm type passed: %s!" % args.algorithm)
+    
+    explanations = explainer(data)
+
+    #### Save the shap values ####
+    if args.algorithm == "lime":
+        explanations = explainer._s
+    else: 
+        explanations = explanations.values
+
+    results = []
+    for i in range(len(explanations)):
+        token_ids = lmmodel.tokenizer.encode(data[i])
+        tokens = [lmmodel.tokenizer.decode(token_id) for token_id in token_ids]
+        if args.algorithm == "lime":
+            token_explanation = convert_to_token_expl(data[i], explanations[i], lmmodel.tokenizer, keep_prefix=keep_prefix)
+        else:
+            token_explanation = explanations[i]
+        assert len(token_explanation) + args.keep_prefix == len(token_ids), "Length of explanations and data do not match!"
+        results.append({'input_id': data_ids[i], 'input': data[i], 'tokens': tokens, 'token_ids': token_ids, 'explanation': token_explanation})
+    return results
+
+def expl_save_path(args):
     save_dir = os.path.join(args.result_save_dir, f'explanations/{args.model_name}/{args.dataset}/{args.algorithm}/seed_{args.seed}')
     os.makedirs(save_dir, exist_ok=True)
     filename = "explanations_"
     filename += f"batch_{args.num_batch}_" if args.num_batch is not None else ""
     filename += f"{args.dataset}_{args.model_name}_{args.algorithm}_{args.seed}.pkl"
-    if os.path.exists(os.path.join(save_dir, filename)):
+    return os.path.join(save_dir, filename)
+    
+
+def main(args):
+    # Set random seed
+    fix_random_seed(args.seed)
+    # Determine device (CPU or GPU)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    model, tokenizer = load_model(device, args)
+    
+    # Initialize TextGeneration model
+    lmmodel = models.TextGeneration(model, tokenizer, device=device)
+    parsed_tokenizer_dict = parse_prefix_suffix_for_tokenizer(lmmodel.tokenizer)
+    args.keep_prefix = parsed_tokenizer_dict['keep_prefix'] # check that keep_prefix is not None, value 0 or 1
+    args.keep_suffix = parsed_tokenizer_dict['keep_suffix'] # check that keep_prefix is not None, value 0 or 1
+
+    # Print tokenizer information - special tokens
+    args.special_tokens = tokenizer.special_tokens_map
+    num_special_tokens = len(args.special_tokens)
+    print(f"Number of special tokens: {num_special_tokens}")
+    print("Special tokens map:")
+    for token_name, token_value in args.special_tokens.items():
+        print(f"{token_name}: {token_value}")
+
+    #### Prepare the data ####
+    data, data_ids = load_data(tokenizer, args)
+    print("Length of data", len(data))
+
+
+    #### Check if the explanations exist ####
+    expl_save_path = expl_save_path(args)
+    if os.path.exists(expl_save_path):
         print("Loading explanations...")
-        results = pickle.load(open(os.path.join(save_dir, filename), "rb"))
+        results = pkl.load(open(expl_save_path, "rb"))
     else:
-        #### Explain the model ####
-        # Choose appropriate explainer based on specified algorithm
-        if args.algorithm == "random":
-            explainer = Random(lmmodel, lmmodel.tokenizer)
-        elif args.algorithm == "partition":
-            explainer = explainers.PartitionExplainer(lmmodel, lmmodel.tokenizer)
-        elif args.algorithm == "hedge":
-            explainer = explainers.HEDGE(lmmodel, lmmodel.tokenizer, model)
-        elif args.algorithm == "hedge_orig":
-            explainer = HEDGEOrig(lmmodel, lmmodel.tokenizer)
-        elif args.algorithm == "lime":
-            explainer_save_dir = os.path.join(args.result_save_dir, f"explainer/seed_{args.seed}")
-            os.makedirs(explainer_save_dir, exist_ok=True)
-            if os.path.exists(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl")):
-                print("Loading LIME explainer...")
-                explainer = dill.load(open(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl"), "rb"))
-            else:
-                explainer = LimeTextGeneration(lmmodel, filtered_data[:1000])
-                with open(os.path.join(explainer_save_dir, f"{args.dataset}_{args.model_name}_lime.pkl"), "wb") as file:
-                    dill.dump(explainer, file)
-        elif args.algorithm == "shap":
-            explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, model, algorithm="shap")
-        elif args.algorithm == "syntax":
-            explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, model, algorithm="syntax")
-        elif args.algorithm == "syntax-w":
-            explainer = explainers.SyntaxExplainer(lmmodel, lmmodel.tokenizer, model, algorithm="syntax-w")
-        elif args.algorithm == "svsampling":
-            explainer = SVSampling(lmmodel, lmmodel.tokenizer, model)
-        elif args.algorithm == "ablation":
-            explainer = Ablation(lmmodel, lmmodel.tokenizer, model)
-        else:
-            raise InvalidAlgorithmError("Unknown algorithm type passed: %s!" % args.algorithm)
-        
-        explanations = explainer(data)
-
-        #### Save the shap values ####
-        if args.algorithm == "lime":
-            explanations = explainer._s
-        else: 
-            explanations = explanations.values
-
-        results = []
-        for i in range(len(explanations)):
-            token_ids = lmmodel.tokenizer.encode(data[i])
-            tokens = [lmmodel.tokenizer.decode(token_id) for token_id in token_ids]
-            if args.algorithm == "lime":
-                token_explanation = convert_to_token_expl(data[i], explanations[i], lmmodel.tokenizer, keep_prefix=keep_prefix)
-            else:
-                token_explanation = explanations[i]
-            assert len(token_explanation) + keep_prefix == len(token_ids), "Length of explanations and data do not match!"
-            results.append({'input_id': data_ids[i], 'input': data[i], 'tokens': tokens, 'token_ids': token_ids, 'explanation': token_explanation})
-        with open(os.path.join(save_dir, filename), "wb") as f:
-            pickle.dump(results, f)
+        results = compute_explanations(lmmodel, data, data_ids, args)
+        with open(expl_save_path, "wb") as f:
+            pkl.dump(results, f)
 
     print("Done!")
     
