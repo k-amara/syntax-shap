@@ -157,7 +157,7 @@ def compute_explanations(lmmodel, model, data, data_ids, filtered_data, args):
         results.append({'input_id': data_ids[i], 'input': data[i], 'tokens': tokens, 'token_ids': token_ids, 'explanation': token_explanation})
     return results
 
-def expl_save_path(args):
+def save_path(args):
     save_dir = os.path.join(args.result_save_dir, f'explanations/{args.model_name}/{args.dataset}/{args.algorithm}/seed_{args.seed}')
     os.makedirs(save_dir, exist_ok=True)
     filename = "explanations_"
@@ -194,13 +194,13 @@ def main(args):
 
 
     #### Check if the explanations exist ####
-    expl_save_path = expl_save_path(args)
-    if os.path.exists(expl_save_path):
+    save_explanation_path = save_path(args)
+    if os.path.exists(save_explanation_path):
         print("Loading explanations...")
-        results = pkl.load(open(expl_save_path, "rb"))
+        results = pkl.load(open(save_explanation_path, "rb"))
     else:
         results = compute_explanations(lmmodel, data, data_ids, args)
-        with open(expl_save_path, "wb") as f:
+        with open(save_explanation_path, "wb") as f:
             pkl.dump(results, f)
 
     print("Done!")
