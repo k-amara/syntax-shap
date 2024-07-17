@@ -5,8 +5,45 @@ from urllib.request import urlretrieve
 import numpy as np
 import pandas as pd
 import sklearn.datasets
+from utils._filter_data import filter_data
 
-# dataset = load_dataset("generics_kb", "generics_kb")
+
+def load_data(tokenizer, args):
+    # Load dataset based on argument
+    if args.dataset == "negation":
+        data, _ = inconsistent_negation(args.data_save_dir)
+    elif args.dataset == "generics":
+        data, _ = generics_kb(args.data_save_dir)
+    elif args.dataset == "rocstories":
+        data, _ = rocstories(args.data_save_dir)
+    else:
+        raise ValueError("Unknown dataset type passed: %s!" % args.dataset)
+    
+    # Filter data based on tokenizer and specified prefixes/suffixes
+    # filtered_data, filtered_ids = filter_data(data, lmmodel.tokenizer, args)
+    filtered_data, filtered_ids = filter_data(data, tokenizer, args)
+    # Get permutation indices
+    if eval(args.shuffle):
+        permutation_indices = np.random.permutation(len(filtered_data))
+    else:
+        permutation_indices = np.arange(len(filtered_data))
+
+    # Shuffle both arrays using the same permutation indices
+    data = filtered_data[permutation_indices] # check that permutation indices are in the range of 0 and len(data)
+    data_ids = filtered_ids[permutation_indices]
+
+    # Limit data to specified batch size and number
+    if args.num_batch is not None:
+        assert args.num_batch * args.batch_size < len(data), "Batch number is too large!"
+        n_min = args.batch_size * args.num_batch
+        n_max = args.batch_size * (args.num_batch + 1) if args.num_batch < len(data) // args.batch_size else len(data)
+        print(f"Batch number {args.num_batch} of size {args.batch_size} is being used.")
+        data = data[n_min:n_max]
+        data_ids = data_ids[n_min:n_max]
+    else:
+        print(f"Batch number is not specified. Using all {len(data)} examples.")
+    return data, data_ids
+
 
 github_data_url = "https://github.com/shap/shap/raw/master/data/"
 
