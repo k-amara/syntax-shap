@@ -1,6 +1,14 @@
 import torch
 import pickle as pkl
 import os
+import faiss
+import numpy as np
+
+from datasets import load_data
+from model import load_model
+from utils import arg_parse, fix_random_seed
+from utils._general import replace_token
+from tqdm import tqdm
 
 
 class Embeddings:
@@ -59,12 +67,78 @@ class Embeddings:
             self.dump_hidden_states(hidden_states, sentence_id)
         return hidden_states
     
-def replace_token(input_ids, k, vocab_size, special_tokens=[1]):
-    replaced_input_ids = []
-    for i in range(len(vocab_size)):
-        input_ids[k] = i
-        replaced_input_ids.append(input_ids)
-    # Remove special tokens 
-    return replaced_input_ids[~special_tokens]
+    
+
+class RankSearch():
+
+    def __init__(self, tokenizer, args):
+        self.seed = args.seed
+        self.tokenizer = tokenizer
+        self.device = args.device
+        self.ranks_dir = os.path.join(args.result_save_dir, "ranks")
+        
+    def save_ranks(self, ranks, sentence_id):
+        with open(os.path.join(self.hidden_states_dir, f"ranks_sentence_{sentence_id}.pkl"), "wb") as f:
+            pkl.dump(ranks, f)
 
 
+    def __call__(self, embeddings, query_token_ids, sentence_id, args):
+        """
+        embeddings (n_token * size_voc * hidden_size): the embeddings of each token 
+                                                    in the vocabulary when replacing each token in the sentence.
+        query_token_ids: the token ids of the sentence
+        sentence_id
+        """
+        
+        num_query_token, size_voc, hidden_size = embeddings.shape
+        # Initialize an array to store the extracted embeddings
+        query_embeddings = np.zeros((len(query_token_ids), hidden_size))
+
+        for i, token_id in enumerate(query_token_ids):
+            # Extract the embedding for the given token_id
+            query_embeddings[i] = embeddings[i, token_id, :]
+        query_embeddings = query_embeddings.detach().cpu().numpy()
+        
+        ranks_sentence_id = np.zeros((num_query_token, size_voc), dtype=np.int32)
+        for i, token_id in enumerate(query_token_ids):
+            index = faiss.index_factory(hidden_size, "Flat", faiss.METRIC_INNER_PRODUCT)
+            embs = embeddings[i]
+            query_emb = query_embeddings[i]
+            faiss.normalize_L2(embs)
+            faiss.normalize_L2(query_emb)
+            index.add(embs)
+            ranks_sentence_id[i] = index.search(query_emb, size_voc)[1].astype(np.int32)
+        print(ranks_sentence_id.shape)
+        self.save_ranks(ranks_sentence_id, sentence_id)
+        
+        return ranks_sentence_id
+
+
+
+def compute_embeddings():
+    # Set random seed
+    fix_random_seed(args.seed)
+    
+    # Determine device (CPU or GPU)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Load model and tokenizer
+    model, tokenizer = load_model(device, args)
+
+    # Prepare the data
+    data, data_ids = load_data(tokenizer, args)
+    print("Length of data:", len(data))
+    
+    embedding_model = Embeddings(model, tokenizer, device, args)
+    
+    for i, str_input in enumerate(tqdm(data)):
+        # tokenize the str_input 
+        inputs = tokenizer(str_input)
+        embeddings = embedding_model(inputs["input_ids"], data_ids[i])
+        
+    
+
+
+
+if __name__ == "__main__":
+    parser, args = arg_parse()

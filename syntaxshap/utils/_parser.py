@@ -52,7 +52,7 @@ def arg_parse():
     )
 
     parser.add_argument(
-        "--hidden_states_dir", type=str, default=HIDDEN_STATES_DIR
+        "--hidden_states_dir", type=str, default=HIDDEN_STATE_DIR
     )
     
     parser.add_argument(

@@ -29,20 +29,21 @@ def load_data(tokenizer, args):
         permutation_indices = np.arange(len(filtered_data))
 
     # Shuffle both arrays using the same permutation indices
-    data = filtered_data[permutation_indices] # check that permutation indices are in the range of 0 and len(data)
-    data_ids = filtered_ids[permutation_indices]
+    all_data = filtered_data[permutation_indices] # check that permutation indices are in the range of 0 and len(data)
+    all_data_ids = filtered_ids[permutation_indices]
 
     # Limit data to specified batch size and number
     if args.num_batch is not None:
-        assert args.num_batch * args.batch_size < len(data), "Batch number is too large!"
+        assert args.num_batch * args.batch_size < len(all_data), "Batch number is too large!"
         n_min = args.batch_size * args.num_batch
-        n_max = args.batch_size * (args.num_batch + 1) if args.num_batch < len(data) // args.batch_size else len(data)
+        n_max = args.batch_size * (args.num_batch + 1) if args.num_batch < len(all_data) // args.batch_size else len(all_data)
         print(f"Batch number {args.num_batch} of size {args.batch_size} is being used.")
-        data = data[n_min:n_max]
-        data_ids = data_ids[n_min:n_max]
+        data = all_data[n_min:n_max]
+        data_ids = all_data_ids[n_min:n_max]
     else:
-        print(f"Batch number is not specified. Using all {len(data)} examples.")
-    return data, data_ids
+        print(f"Batch number is not specified. Using all {len(all_data)} examples.")
+        data, data_ids = all_data, all_data_ids
+    return data, data_ids, all_data
 
 
 github_data_url = "https://github.com/shap/shap/raw/master/data/"

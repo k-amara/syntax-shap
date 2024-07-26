@@ -363,3 +363,16 @@ def convert_to_token_expl(sentence, word_expl, tokenizer, keep_prefix=0):
     print("The explanation has the size of the number of tokens without the start token <s>.")
     print('token_expl:', len(token_expl))
     return token_expl
+
+
+def replace_token(input_ids, k, vocab_size, special_tokens=[1]):
+    """
+    Given a list of tokens from an input sentence, generate a list of all the combination lists when replacing token k with another token from the vocabulary.
+    You do not use a special_token to replace a token!
+    """
+    replaced_input_ids = []
+    for i in range(len(vocab_size)):
+        input_ids[k] = i
+        replaced_input_ids.append(input_ids)
+    # Remove special tokens 
+    return replaced_input_ids[~special_tokens]

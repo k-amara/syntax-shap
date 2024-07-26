@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import random
 import os
-import pkl as pkl
+import pickle as pkl
 from typing import List, Optional, Tuple, Union
 
 import links

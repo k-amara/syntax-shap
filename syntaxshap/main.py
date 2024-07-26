@@ -41,7 +41,7 @@ def main(args):
         print(f"{token_name}: {token_value}")
 
     # Prepare the data
-    data, data_ids = load_data(tokenizer, args)
+    data, data_ids, all_data = load_data(tokenizer, args)
     print("Length of data:", len(data))
 
     # Check if explanations exist
@@ -51,7 +51,7 @@ def main(args):
         with open(save_explanation_path, "rb") as f:
             results = pkl.load(f)
     else:
-        results = compute_explanations(lmmodel, data, data_ids, args)
+        results = compute_explanations(lmmodel, model, data, data_ids, all_data, args)
         with open(save_explanation_path, "wb") as f:
             pkl.dump(results, f)
 
@@ -63,6 +63,40 @@ def main(args):
     scores = get_scores(results, lmmodel, args.threshold)
     print("Scores:", scores)
     save_scores(args, scores)
+    
+def test_method(args):
+    # Set random seed
+    fix_random_seed(args.seed)
+    
+    # Determine device (CPU or GPU)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Load model and tokenizer
+    model, tokenizer = load_model(device, args)
+    
+    # Initialize TextGeneration model
+    lmmodel = models.TextGeneration(model, tokenizer, device=device)
+    
+    # Parse tokenizer prefix and suffix
+    parsed_tokenizer_dict = parse_prefix_suffix_for_tokenizer(lmmodel.tokenizer)
+    args.keep_prefix = parsed_tokenizer_dict['keep_prefix']
+    args.keep_suffix = parsed_tokenizer_dict['keep_suffix']
+
+    # Print special tokens information
+    args.special_tokens = tokenizer.special_tokens_map
+    num_special_tokens = len(args.special_tokens)
+    print(f"Number of special tokens: {num_special_tokens}")
+    print("Special tokens map:")
+    for token_name, token_value in args.special_tokens.items():
+        print(f"{token_name}: {token_value}")
+
+    # Prepare the data
+    data, data_ids, all_data = load_data(tokenizer, args)
+    print("Length of data:", len(data))
+
+    results = compute_explanations(lmmodel, model, data, data_ids, all_data, args)
+    print("Done!")
+
 
 
 if __name__ == "__main__":
@@ -86,4 +120,5 @@ if __name__ == "__main__":
     """
 
     # Execute main function
-    main(args)
+    # main(args)
+    test_method(args)
