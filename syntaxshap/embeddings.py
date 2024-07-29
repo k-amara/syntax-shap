@@ -88,6 +88,8 @@ class RankSearch():
                                                     in the vocabulary when replacing each token in the sentence.
         query_token_ids: the token ids of the sentence
         sentence_id
+        
+        Return: ranks_sentence_id (n_token * size_voc): the ranks of the sentence_id in the vocabulary
         """
         
         num_query_token, size_voc, hidden_size = embeddings.shape
@@ -126,7 +128,7 @@ def compute_embeddings():
     model, tokenizer = load_model(device, args)
 
     # Prepare the data
-    data, data_ids = load_data(tokenizer, args)
+    data, data_ids, all_data = load_data(tokenizer, args)
     print("Length of data:", len(data))
     
     embedding_model = Embeddings(model, tokenizer, device, args)
@@ -135,6 +137,12 @@ def compute_embeddings():
         # tokenize the str_input 
         inputs = tokenizer(str_input)
         embeddings = embedding_model(inputs["input_ids"], data_ids[i])
+        print("embeddings shape:", embeddings.size()) # n_tokens * vocab_size * hidden_size
+        print("embeddings:", embeddings)
+        rank_engine = RankSearch(tokenizer, args)
+        ranks = rank_engine(embeddings, inputs["input_ids"], data_ids[i], args)
+        print("ranks:", ranks)
+        
         
     
 
