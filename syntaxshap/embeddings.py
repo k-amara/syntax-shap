@@ -117,7 +117,7 @@ class RankSearch():
 
 
 
-def compute_embeddings():
+def compute_embeddings(args):
     # Set random seed
     fix_random_seed(args.seed)
     
@@ -150,3 +150,4 @@ def compute_embeddings():
 
 if __name__ == "__main__":
     parser, args = arg_parse()
+    compute_embeddings(args)

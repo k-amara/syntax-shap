@@ -87,7 +87,7 @@ def arg_parse():
     parser.add_argument(
         "--dataset",
         type=str,
-        default="negation", choices=["negation", "rocstories", "generics"]
+        default="generics", choices=["negation", "rocstories", "generics"]
     )
 
     parser.add_argument(
@@ -105,7 +105,7 @@ def arg_parse():
     )
     
     parser.add_argument(
-        "--embedding_layer", type=str, default="lower", choices=["upper", "lower"]
+        "--embedding_layer", type=str, default="upper", choices=["upper", "lower"]
     )
 
     parser.add_argument(
