@@ -2,8 +2,6 @@ import os
 import torch
 import transformers
 from transformers import AutoTokenizer, AutoModelForCausalLM
-#from huggingface_hub import login
-#login(token="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")
 
 # Define minimum required version of transformers library
 MIN_TRANSFORMERS_VERSION = "4.25.1"
