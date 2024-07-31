@@ -18,9 +18,10 @@ class Embeddings:
         self.model = model
         self.tokenizer = tokenizer
         self.vocab_size = tokenizer.vocab_size
-        self.padding_length = args.padding_length
         if args.model_name == "gemma-2b":
             self.hidden_size = 2048
+        elif args.model_name == "gpt2":
+            self.hidden_size = 768
         elif args.model_name == "mistral":
             self.hidden_size = 4096
         self.batch_size = args.batch_size
@@ -48,51 +49,54 @@ class Embeddings:
             with open(hidden_path, "rb") as f:
                 hidden_states = pkl.load(f)
         else:
-            os.makedirs(self.hidden_states_dir)
+            os.makedirs(self.hidden_states_dir, exist_ok=True)
             if self.layer == "upper":
                 layer_id = -2
             elif self.layer == "lower":
                 layer_id = 1
             # create empty tensor to store hidden states
             hidden_states = torch.zeros((len(input_ids), self.vocab_size, self.hidden_size))
-            
+            print("Number of tokens: ", len(input_ids))
             with torch.inference_mode():
-                for k, token in enumerate(input_ids):
+                for k, token in enumerate(tqdm(input_ids)):
                     replaced_input_ids = replace_token(input_ids, k, self.vocab_size, special_tokens=[1])
-                    outputs = self.model(replaced_input_ids, output_hidden_states=True)
-                    # check that outputs.hidden_states[layer_id] has size n_tokens * hidden_size
-                    print(outputs.hidden_states[layer_id].size())
-                    hidden_states[k] = outputs.hidden_states[layer_id][k] # a list of the embeddings of each token in the vocabulary when replacing the token at position k
+                    for j, new_sentence in enumerate(tqdm(replaced_input_ids)):
+                        outputs = self.model(new_sentence, output_hidden_states=True)
+                        # check that outputs.hidden_states[layer_id] has size n_tokens * hidden_size
+                        hidden_states[k][j] = outputs.hidden_states[layer_id][0][k] # a list of the embeddings of each token in the vocabulary when replacing the token at position k
             # check hidden_states size 
             self.dump_hidden_states(hidden_states, sentence_id)
         return hidden_states
     
     
 
-class RankSearch():
+class SimilaritySearch():
 
     def __init__(self, tokenizer, args):
         self.seed = args.seed
         self.tokenizer = tokenizer
         self.device = args.device
-        self.ranks_dir = os.path.join(args.result_save_dir, "ranks")
         
     def save_ranks(self, ranks, sentence_id):
         with open(os.path.join(self.hidden_states_dir, f"ranks_sentence_{sentence_id}.pkl"), "wb") as f:
             pkl.dump(ranks, f)
+            
+    def save_distances(self, distances, sentence_id):
+        with open(os.path.join(self.hidden_states_dir, f"distances_sentence_{sentence_id}.pkl"), "wb") as f:
+            pkl.dump(distances, f)
 
 
     def __call__(self, embeddings, query_token_ids, sentence_id, args):
         """
-        embeddings (n_token * size_voc * hidden_size): the embeddings of each token 
+        embeddings (n_token * vocab_size * hidden_size): the embeddings of each token 
                                                     in the vocabulary when replacing each token in the sentence.
         query_token_ids: the token ids of the sentence
         sentence_id
         
-        Return: ranks_sentence_id (n_token * size_voc): the ranks of the sentence_id in the vocabulary
+        Return: ranks_sentence_id (n_token * vocab_size): the ranks of the sentence_id in the vocabulary
         """
         
-        num_query_token, size_voc, hidden_size = embeddings.shape
+        num_query_token, vocab_size, hidden_size = embeddings.shape
         # Initialize an array to store the extracted embeddings
         query_embeddings = np.zeros((len(query_token_ids), hidden_size))
 
@@ -101,7 +105,9 @@ class RankSearch():
             query_embeddings[i] = embeddings[i, token_id, :]
         query_embeddings = query_embeddings.detach().cpu().numpy()
         
-        ranks_sentence_id = np.zeros((num_query_token, size_voc), dtype=np.int32)
+        D = np.zeros((num_query_token, vocab_size), dtype=np.float32)
+        I = np.zeros((num_query_token, vocab_size), dtype=np.int32)
+       
         for i, token_id in enumerate(query_token_ids):
             index = faiss.index_factory(hidden_size, "Flat", faiss.METRIC_INNER_PRODUCT)
             embs = embeddings[i]
@@ -109,11 +115,13 @@ class RankSearch():
             faiss.normalize_L2(embs)
             faiss.normalize_L2(query_emb)
             index.add(embs)
-            ranks_sentence_id[i] = index.search(query_emb, size_voc)[1].astype(np.int32)
-        print(ranks_sentence_id.shape)
-        self.save_ranks(ranks_sentence_id, sentence_id)
+            D[i] = index.search(query_emb, vocab_size)[0].astype(np.float32)
+            I[i] = index.search(query_emb, vocab_size)[1].astype(np.int32)
+        print(I.shape)
+        self.save_distances(D, sentence_id)
+        self.save_ranks(I, sentence_id)
         
-        return ranks_sentence_id
+        return D, I
 
 
 
@@ -139,8 +147,9 @@ def compute_embeddings(args):
         embeddings = embedding_model(inputs["input_ids"], data_ids[i])
         print("embeddings shape:", embeddings.size()) # n_tokens * vocab_size * hidden_size
         print("embeddings:", embeddings)
-        rank_engine = RankSearch(tokenizer, args)
-        ranks = rank_engine(embeddings, inputs["input_ids"], data_ids[i], args)
+        search_engine = SimilaritySearch(tokenizer, args)
+        distances, ranks = search_engine(embeddings, inputs["input_ids"], data_ids[i], args)
+        print("distances:", distances)
         print("ranks:", ranks)
         
         

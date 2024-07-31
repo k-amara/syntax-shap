@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import scipy.special
 import sklearn
+import torch
 
 from transformers import AutoTokenizer
 
@@ -269,7 +270,7 @@ def ordinal_str(n):
     """
     return str(n) + {1: 'st', 2: 'nd', 3: 'rd'}.get(4 if 10 <= n % 100 < 20 else n % 10, "th")
 
-class OpChain:
+class OpChain():
     """ A way to represent a set of dot chained operations on an object without actually running them.
     """
 
@@ -371,8 +372,9 @@ def replace_token(input_ids, k, vocab_size, special_tokens=[1]):
     You do not use a special_token to replace a token!
     """
     replaced_input_ids = []
-    for i in range(len(vocab_size)):
-        input_ids[k] = i
-        replaced_input_ids.append(input_ids)
+    for i in range(vocab_size):
+        input_ids_c = input_ids.copy()
+        input_ids_c[k] = i
+        replaced_input_ids.append(input_ids_c)
     # Remove special tokens 
-    return replaced_input_ids[~special_tokens]
+    return torch.LongTensor(replaced_input_ids)#[~special_tokens]
